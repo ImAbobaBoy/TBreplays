@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TB Map Viewer</title>
+  </head>
+  <body>
+    <div id="app">
+      <div id="toolbar">
+        <div class="title">TB Map Viewer</div>
+
+        <label class="field">
+          <span>Map ID</span>
+          <input id="mapIdInput" type="text" placeholder="33_neptune_nt-2e1a1d5b" />
+        </label>
+
+        <button id="loadButton">Загрузить карту</button>
+
+        <label class="field">
+          <span>Replay ID</span>
+          <input id="replayIdInput" type="text" placeholder="tbreplay-extracted-analysis-..." />
+        </label>
+
+        <button id="importReplayButton">Импорт replay</button>
+        <button id="loadReplayButton">Загрузить танки</button>
+        <button id="playReplayButton">Play</button>
+
+        <label class="field time-field">
+          <span>Replay time</span>
+          <input id="replayTimeSlider" type="range" min="0" max="1" step="0.05" value="0" />
+        </label>
+
+        <div id="replayTimeLabel">0.00 / 0.00</div>
+
+        <div id="status">Готово</div>
+      </div>
+
+      <div id="viewer"></div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

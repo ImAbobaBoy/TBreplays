@@ -1,0 +1,197 @@
+{
+  "mapId": "16_holland_hl-60e2510d",
+  "heightmapSize": 512,
+  "heightmapTileSize": 16,
+  "chunkCellSize": 128,
+  "chunksX": 4,
+  "chunksY": 4,
+  "bounds": {
+    "minX": -300,
+    "minY": -300,
+    "minZ": 0,
+    "maxX": 300,
+    "maxY": 300,
+    "maxZ": 70,
+    "width": 600,
+    "depth": 600,
+    "height": 70
+  },
+  "chunks": [
+    {
+      "x": 0,
+      "y": 0,
+      "startSampleX": 0,
+      "startSampleY": 0,
+      "width": 129,
+      "height": 129,
+      "cellsX": 128,
+      "cellsY": 128,
+      "url": "/api/maps/16_holland_hl-60e2510d/terrain/chunks/0/0"
+    },
+    {
+      "x": 1,
+      "y": 0,
+      "startSampleX": 128,
+      "startSampleY": 0,
+      "width": 129,
+      "height": 129,
+      "cellsX": 128,
+      "cellsY": 128,
+      "url": "/api/maps/16_holland_hl-60e2510d/terrain/chunks/1/0"
+    },
+    {
+      "x": 2,
+      "y": 0,
+      "startSampleX": 256,
+      "startSampleY": 0,
+      "width": 129,
+      "height": 129,
+      "cellsX": 128,
+      "cellsY": 128,
+      "url": "/api/maps/16_holland_hl-60e2510d/terrain/chunks/2/0"
+    },
+    {
+      "x": 3,
+      "y": 0,
+      "startSampleX": 384,
+      "startSampleY": 0,
+      "width": 128,
+      "height": 129,
+      "cellsX": 127,
+      "cellsY": 128,
+      "url": "/api/maps/16_holland_hl-60e2510d/terrain/chunks/3/0"
+    },
+    {
+      "x": 0,
+      "y": 1,
+      "startSampleX": 0,
+      "startSampleY": 128,
+      "width": 129,
+      "height": 129,
+      "cellsX": 128,
+      "cellsY": 128,
+      "url": "/api/maps/16_holland_hl-60e2510d/terrain/chunks/0/1"
+    },
+    {
+      "x": 1,
+      "y": 1,
+      "startSampleX": 128,
+      "startSampleY": 128,
+      "width": 129,
+      "height": 129,
+      "cellsX": 128,
+      "cellsY": 128,
+      "url": "/api/maps/16_holland_hl-60e2510d/terrain/chunks/1/1"
+    },
+    {
+      "x": 2,
+      "y": 1,
+      "startSampleX": 256,
+      "startSampleY": 128,
+      "width": 129,
+      "height": 129,
+      "cellsX": 128,
+      "cellsY": 128,
+      "url": "/api/maps/16_holland_hl-60e2510d/terrain/chunks/2/1"
+    },
+    {
+      "x": 3,
+      "y": 1,
+      "startSampleX": 384,
+      "startSampleY": 128,
+      "width": 128,
+      "height": 129,
+      "cellsX": 127,
+      "cellsY": 128,
+      "url": "/api/maps/16_holland_hl-60e2510d/terrain/chunks/3/1"
+    },
+    {
+      "x": 0,
+      "y": 2,
+      "startSampleX": 0,
+      "startSampleY": 256,
+      "width": 129,
+      "height": 129,
+      "cellsX": 128,
+      "cellsY": 128,
+      "url": "/api/maps/16_holland_hl-60e2510d/terrain/chunks/0/2"
+    },
+    {
+      "x": 1,
+      "y": 2,
+      "startSampleX": 128,
+      "startSampleY": 256,
+      "width": 129,
+      "height": 129,
+      "cellsX": 128,
+      "cellsY": 128,
+      "url": "/api/maps/16_holland_hl-60e2510d/terrain/chunks/1/2"
+    },
+    {
+      "x": 2,
+      "y": 2,
+      "startSampleX": 256,
+      "startSampleY": 256,
+      "width": 129,
+      "height": 129,
+      "cellsX": 128,
+      "cellsY": 128,
+      "url": "/api/maps/16_holland_hl-60e2510d/terrain/chunks/2/2"
+    },
+    {
+      "x": 3,
+      "y": 2,
+      "startSampleX": 384,
+      "startSampleY": 256,
+      "width": 128,
+      "height": 129,
+      "cellsX": 127,
+      "cellsY": 128,
+      "url": "/api/maps/16_holland_hl-60e2510d/terrain/chunks/3/2"
+    },
+    {
+      "x": 0,
+      "y": 3,
+      "startSampleX": 0,
+      "startSampleY": 384,
+      "width": 129,
+      "height": 128,
+      "cellsX": 128,
+      "cellsY": 127,
+      "url": "/api/maps/16_holland_hl-60e2510d/terrain/chunks/0/3"
+    },
+    {
+      "x": 1,
+      "y": 3,
+      "startSampleX": 128,
+      "startSampleY": 384,
+      "width": 129,
+      "height": 128,
+      "cellsX": 128,
+      "cellsY": 127,
+      "url": "/api/maps/16_holland_hl-60e2510d/terrain/chunks/1/3"
+    },
+    {
+      "x": 2,
+      "y": 3,
+      "startSampleX": 256,
+      "startSampleY": 384,
+      "width": 129,
+      "height": 128,
+      "cellsX": 128,
+      "cellsY": 127,
+      "url": "/api/maps/16_holland_hl-60e2510d/terrain/chunks/2/3"
+    },
+    {
+      "x": 3,
+      "y": 3,
+      "startSampleX": 384,
+      "startSampleY": 384,
+      "width": 128,
+      "height": 128,
+      "cellsX": 127,
+      "cellsY": 127,
+      "url": "/api/maps/16_holland_hl-60e2510d/terrain/chunks/3/3"
+    }
+  ]
+}
