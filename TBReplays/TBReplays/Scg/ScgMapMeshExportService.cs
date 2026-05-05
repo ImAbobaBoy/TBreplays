@@ -41,13 +41,19 @@ public sealed class ScgMapMeshExportService
         var meshPath = Path.Combine(processedDirectory, "objects_mesh.bin");
         var manifestPath = Path.Combine(processedDirectory, "objects_mesh_manifest.json");
 
-        var sc2Path = FindShortestFile(importedDirectory, "*.sc2.dvpl")
-            ?? FindShortestFile(importedDirectory, "*.sc2");
+        var sc2Paths = FindFiles(importedDirectory, "*.sc2.dvpl")
+            .Concat(FindFiles(importedDirectory, "*.sc2"))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
+            .ToArray();
 
-        var scgPath = FindShortestFile(importedDirectory, "*.scg.dvpl")
-            ?? FindShortestFile(importedDirectory, "*.scg");
+        var scgPaths = FindFiles(importedDirectory, "*.scg.dvpl")
+            .Concat(FindFiles(importedDirectory, "*.scg"))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
+            .ToArray();
 
-        if (sc2Path is null || scgPath is null)
+        if (sc2Paths.Length == 0 || scgPaths.Length == 0)
         {
             WriteMeshBinary(meshPath, [], []);
 
@@ -62,16 +68,28 @@ public sealed class ScgMapMeshExportService
             return emptyManifest;
         }
 
-        var sc2Bytes = _dvplDecoder.DecodeFile(sc2Path);
-        var scgBytes = _dvplDecoder.DecodeFile(scgPath);
+        var polygonGroups = ReadAllPolygonGroups(scgPaths);
 
-        var scene = _sc2SceneReader.Read(sc2Bytes);
-        var polygonGroups = _polygonGroupReader.Read(scgBytes);
+        var positions = new List<float>(2_000_000);
+        var indices = new List<uint>(2_000_000);
 
-        var positions = new List<float>(1_000_000);
-        var indices = new List<uint>(1_000_000);
+        foreach (var sc2Path in sc2Paths)
+        {
+            try
+            {
+                var sc2Bytes = _dvplDecoder.DecodeFile(sc2Path);
+                var scene = _sc2SceneReader.Read(sc2Bytes);
 
-        AppendSceneMeshes(scene, polygonGroups, positions, indices);
+                AppendSceneMeshes(scene, polygonGroups, positions, indices);
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine($"[SC2] Failed to read scene '{sc2Path}': {exception.Message}");
+            }
+        }
+
+        Console.WriteLine(
+            $"[SCG] Exported object mesh: sc2={sc2Paths.Length}, scg={scgPaths.Length}, polygonGroups={polygonGroups.Count}, vertices={positions.Count / 3}, indices={indices.Count}");
 
         WriteMeshBinary(meshPath, positions, indices);
 
@@ -84,6 +102,44 @@ public sealed class ScgMapMeshExportService
         await WriteManifestAsync(manifestPath, manifest, cancellationToken);
 
         return manifest;
+    }
+    
+    private IReadOnlyDictionary<ulong, ScgPolygonGroup> ReadAllPolygonGroups(
+        IReadOnlyList<string> scgPaths)
+    {
+        var result = new Dictionary<ulong, ScgPolygonGroup>();
+
+        foreach (var scgPath in scgPaths)
+        {
+            try
+            {
+                var scgBytes = _dvplDecoder.DecodeFile(scgPath);
+                var polygonGroups = _polygonGroupReader.Read(scgBytes);
+
+                foreach (var polygonGroup in polygonGroups.Values)
+                {
+                    result[polygonGroup.Id] = polygonGroup;
+                }
+
+                Console.WriteLine(
+                    $"[SCG] Loaded '{scgPath}': polygonGroups={polygonGroups.Count}");
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine($"[SCG] Failed to read '{scgPath}': {exception.Message}");
+            }
+        }
+
+        return result;
+    }
+
+    private static IReadOnlyList<string> FindFiles(
+        string directory,
+        string searchPattern)
+    {
+        return Directory
+            .EnumerateFiles(directory, searchPattern, SearchOption.AllDirectories)
+            .ToArray();
     }
 
     private static void AppendSceneMeshes(
@@ -122,16 +178,28 @@ public sealed class ScgMapMeshExportService
                 scale = [1f, 1f, 1f];
             }
 
-            if (!PassObjectFilter(render, scale, translation))
+            var entityName = TryGetString(entity, "name")
+                             ?? TryGetString(entity, "##name")
+                             ?? string.Empty;
+
+            var isImportantMapObject = IsImportantMapObject(entityName);
+
+            if (!PassObjectFilter(entityName, render, scale, translation))
             {
                 continue;
             }
 
-            var dataSourceIds = ReadLod0DataSourceIds(render);
+            var dataSourceIds = ReadLod0DataSourceIds(render, isImportantMapObject);
 
             if (dataSourceIds.Count == 0)
             {
                 continue;
+            }
+            
+            if (isImportantMapObject)
+            {
+                Console.WriteLine(
+                    $"[SCG] Important object included: '{entityName}', datasources={dataSourceIds.Count}");
             }
 
             var position = new Vector3(translation[0], translation[1], translation[2]);
@@ -217,7 +285,9 @@ public sealed class ScgMapMeshExportService
             -value.Y);
     }
 
-    private static List<ulong> ReadLod0DataSourceIds(Dictionary<string, object?> render)
+    private static List<ulong> ReadLod0DataSourceIds(
+        Dictionary<string, object?> render,
+        bool forceImportantObject)
     {
         var result = new List<ulong>();
 
@@ -229,10 +299,8 @@ public sealed class ScgMapMeshExportService
 
         var renderObjectName = TryGetString(renderObject, "##name");
 
-        // Не режем всё, что называется не "Mesh".
-        // На картах крупные декорации могут лежать в RenderObject с другим именем.
-        // Главное — чтобы у объекта были ro.batches и rb.datasource.
-        if (!string.IsNullOrWhiteSpace(renderObjectName) &&
+        if (!forceImportantObject &&
+            !string.IsNullOrWhiteSpace(renderObjectName) &&
             renderObjectName.Contains("Skinned", StringComparison.OrdinalIgnoreCase))
         {
             return result;
@@ -251,7 +319,7 @@ public sealed class ScgMapMeshExportService
                 continue;
             }
 
-            if (int.TryParse(batchKey, out var batchIndex))
+            if (!forceImportantObject && int.TryParse(batchKey, out var batchIndex))
             {
                 var lodKey = $"rb{batchIndex}.lodIndex";
 
@@ -273,6 +341,7 @@ public sealed class ScgMapMeshExportService
     }
 
     private static bool PassObjectFilter(
+        string entityName,
         Dictionary<string, object?> render,
         float[] scale,
         float[] position)
@@ -301,35 +370,71 @@ public sealed class ScgMapMeshExportService
         var minHorizontalSize = MathF.Min(scaledSizeX, scaledSizeY);
         var horizontalArea = scaledSizeX * scaledSizeY;
 
-        // if (maxScaledSize < 0.35f)
-        // {
-        //     return false;
-        // }
-        //
-        // if (maxScaledSize > 260f)
-        // {
-        //     return false;
-        // }
-        //
-        // if (maxHorizontalSize > 160f && minHorizontalSize > 70f)
-        // {
-        //     return false;
-        // }
-        //
-        // if (horizontalArea > 9000f)
-        // {
-        //     return false;
-        // }
+        if (maxScaledSize < 0.35f)
+        {
+            return false;
+        }
 
-        if (MathF.Abs(position[0]) > 1000f ||
-            MathF.Abs(position[1]) > 1000f ||
-            position[2] < -100f ||
-            position[2] > 300f)
+        if (!IsReasonableMapPosition(position))
+        {
+            return false;
+        }
+
+        if (IsImportantMapObject(entityName))
+        {
+            return true;
+        }
+
+        if (maxScaledSize > 900f)
+        {
+            return false;
+        }
+
+        if (maxHorizontalSize > 700f && minHorizontalSize > 450f)
+        {
+            return false;
+        }
+
+        if (horizontalArea > 180000f)
         {
             return false;
         }
 
         return true;
+    }
+    
+    private static bool IsImportantMapObject(string entityName)
+    {
+        if (string.IsNullOrWhiteSpace(entityName))
+        {
+            return false;
+        }
+
+        var name = entityName.ToLowerInvariant();
+
+        return name.Contains("bld_")
+               || name.Contains("house")
+               || name.Contains("barn")
+               || name.Contains("church")
+               || name.Contains("bunker")
+               || name.Contains("bridge")
+               || name.Contains("hangar")
+               || name.Contains("heinkel")
+               || name.Contains("plane")
+               || name.Contains("airplane")
+               || name.Contains("destroy")
+               || name.Contains("destr")
+               || name.Contains("ruin");
+    }
+
+    private static bool IsReasonableMapPosition(float[] position)
+    {
+        // Для обычных игровых объектов держим поле карты + небольшой запас.
+        // Очень далёкие lightning/cloud/vista plane должны отсеиваться.
+        return MathF.Abs(position[0]) <= 700f
+               && MathF.Abs(position[1]) <= 700f
+               && position[2] >= -100f
+               && position[2] <= 500f;
     }
 
     private static bool TryReadRenderBounds(
@@ -594,15 +699,5 @@ public sealed class ScgMapMeshExportService
         var json = JsonSerializer.Serialize(manifest, JsonOptions);
 
         await File.WriteAllTextAsync(path, json, cancellationToken);
-    }
-
-    private static string? FindShortestFile(
-        string directory,
-        string searchPattern)
-    {
-        return Directory
-            .EnumerateFiles(directory, searchPattern, SearchOption.AllDirectories)
-            .OrderBy(x => x.Length)
-            .FirstOrDefault();
     }
 }

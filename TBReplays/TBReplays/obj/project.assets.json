@@ -392,11 +392,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Omen 491\\умное\\CSharp\\MyWay\\TBReplays\\TBReplays\\TBReplays.csproj",
+      "projectUniqueName": "C:\\Users\\Omen 491\\умное\\CSharp\\MyWay\\TBRepl\\TBReplays\\TBReplays\\TBReplays.csproj",
       "projectName": "TBReplays",
-      "projectPath": "C:\\Users\\Omen 491\\умное\\CSharp\\MyWay\\TBReplays\\TBReplays\\TBReplays.csproj",
+      "projectPath": "C:\\Users\\Omen 491\\умное\\CSharp\\MyWay\\TBRepl\\TBReplays\\TBReplays\\TBReplays.csproj",
       "packagesPath": "C:\\Users\\Omen 491\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Omen 491\\умное\\CSharp\\MyWay\\TBReplays\\TBReplays\\obj\\",
+      "outputPath": "C:\\Users\\Omen 491\\умное\\CSharp\\MyWay\\TBRepl\\TBReplays\\TBReplays\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
