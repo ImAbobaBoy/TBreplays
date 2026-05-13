@@ -2,4 +2,5 @@
 
 public sealed record MapImportResultDto(
     string MapId,
-    string ManifestUrl);
+    string ManifestUrl,
+    string CalibrationUrl);

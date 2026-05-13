@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using TBReplays.Maps;
+using TBReplays.Maps.Calibration;
 
 namespace TBReplays.Controllers;
 
@@ -118,5 +119,36 @@ public sealed class MapsController : ControllerBase
             path,
             "image/vnd-ms.dds",
             enableRangeProcessing: true);
+    }
+    
+    [HttpGet("{mapId}/calibration")]
+    public async Task<ActionResult<MapCalibrationDto>> GetCalibration(
+        string mapId,
+        CancellationToken cancellationToken)
+    {
+        var calibration = await _mapImportService.GetCalibrationAsync(
+            mapId,
+            cancellationToken);
+
+        return Ok(calibration);
+    }
+    
+    [HttpPut("{mapId}/calibration")]
+    public async Task<ActionResult<MapCalibrationDto>> SaveCalibration(
+        string mapId,
+        MapCalibrationDto calibration,
+        CancellationToken cancellationToken)
+    {
+        var calibrationToSave = calibration with
+        {
+            MapId = mapId
+        };
+
+        var saved = await _mapImportService.SaveCalibrationAsync(
+            mapId,
+            calibrationToSave,
+            cancellationToken);
+
+        return Ok(saved);
     }
 }

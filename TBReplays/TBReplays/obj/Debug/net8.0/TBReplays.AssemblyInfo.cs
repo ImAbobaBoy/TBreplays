@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TBReplays")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+46be9fd64a6a0e1ca545c8b0c2b2730f819817d3")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ebcc79bb6ded6cdc280d1af02a84dbda5f2001eb")]
 [assembly: System.Reflection.AssemblyProductAttribute("TBReplays")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TBReplays")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

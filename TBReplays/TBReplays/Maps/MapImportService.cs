@@ -1,6 +1,7 @@
 ﻿using System.IO.Compression;
 using System.Text.Json;
 using TBReplays.Dvpl;
+using TBReplays.Maps.Calibration;
 using TBReplays.Sc2;
 using TBReplays.Scg;
 using TBReplays.Terrain;
@@ -18,18 +19,11 @@ public sealed class MapImportService
         WriteIndented = true
     };
 
-    private static readonly TerrainBoundsDto DefaultBounds = new(
-        MinX: -300f,
-        MinY: -300f,
-        MinZ: 0f,
-        MaxX: 300f,
-        MaxY: 300f,
-        MaxZ: 82f);
-
     private readonly IWebHostEnvironment _environment;
     private readonly DvplDecoder _dvplDecoder;
     private readonly DavaHeightmapReader _heightmapReader;
     private readonly TerrainChunkExporter _terrainChunkExporter;
+    private readonly MapCalibrationService _mapCalibrationService;
     private readonly Sc2MapObjectExtractor _sc2MapObjectExtractor;
     private readonly ScgMapMeshExportService _scgMapMeshExportService;
 
@@ -38,6 +32,7 @@ public sealed class MapImportService
         DvplDecoder dvplDecoder,
         DavaHeightmapReader heightmapReader,
         TerrainChunkExporter terrainChunkExporter,
+        MapCalibrationService mapCalibrationService,
         Sc2MapObjectExtractor sc2MapObjectExtractor,
         ScgMapMeshExportService scgMapMeshExportService)
     {
@@ -45,6 +40,7 @@ public sealed class MapImportService
         _dvplDecoder = dvplDecoder;
         _heightmapReader = heightmapReader;
         _terrainChunkExporter = terrainChunkExporter;
+        _mapCalibrationService = mapCalibrationService;
         _sc2MapObjectExtractor = sc2MapObjectExtractor;
         _scgMapMeshExportService = scgMapMeshExportService;
     }
@@ -78,10 +74,20 @@ public sealed class MapImportService
         var heightmapBytes = _dvplDecoder.DecodeFile(heightmapPath);
         var heightmap = _heightmapReader.Read(heightmapBytes);
 
+        var calibration = await _mapCalibrationService.CreateAndSaveAsync(
+            mapId,
+            archive.FileName,
+            heightmap,
+            importedDirectory,
+            processedDirectory,
+            cancellationToken);
+
+        var bounds = _mapCalibrationService.CreateTerrainBounds(calibration);
+
         await _terrainChunkExporter.ExportAsync(
             mapId,
             heightmap,
-            DefaultBounds,
+            bounds,
             processedDirectory,
             DefaultChunkCellSize,
             cancellationToken);
@@ -106,7 +112,8 @@ public sealed class MapImportService
 
         return new MapImportResultDto(
             MapId: mapId,
-            ManifestUrl: $"/api/maps/{mapId}/manifest");
+            ManifestUrl: $"/api/maps/{mapId}/manifest",
+            CalibrationUrl: $"/api/maps/{mapId}/calibration");
     }
     
     public async Task<MapImportResultDto> ImportFromLocalArchiveAsync(
@@ -135,10 +142,20 @@ public sealed class MapImportService
         var heightmapBytes = _dvplDecoder.DecodeFile(heightmapPath);
         var heightmap = _heightmapReader.Read(heightmapBytes);
 
+        var calibration = await _mapCalibrationService.CreateAndSaveAsync(
+            mapId,
+            Path.GetFileName(archivePath),
+            heightmap,
+            importedDirectory,
+            processedDirectory,
+            cancellationToken);
+
+        var bounds = _mapCalibrationService.CreateTerrainBounds(calibration);
+
         await _terrainChunkExporter.ExportAsync(
             mapId,
             heightmap,
-            DefaultBounds,
+            bounds,
             processedDirectory,
             DefaultChunkCellSize,
             cancellationToken);
@@ -163,7 +180,8 @@ public sealed class MapImportService
 
         return new MapImportResultDto(
             MapId: mapId,
-            ManifestUrl: $"/api/maps/{mapId}/manifest");
+            ManifestUrl: $"/api/maps/{mapId}/manifest",
+            CalibrationUrl: $"/api/maps/{mapId}/calibration");
     }
 
     public async Task<MapManifestDto> GetManifestAsync(
@@ -185,6 +203,26 @@ public sealed class MapImportService
             cancellationToken);
 
         return manifest ?? throw new InvalidDataException("Manifest повреждён.");
+    }
+    
+    public async Task<MapCalibrationDto> SaveCalibrationAsync(
+        string mapId,
+        MapCalibrationDto calibration,
+        CancellationToken cancellationToken)
+    {
+        return await _mapCalibrationService.SaveAsync(
+            GetProcessedDirectory(mapId),
+            calibration,
+            cancellationToken);
+    }
+    
+    public async Task<MapCalibrationDto> GetCalibrationAsync(
+        string mapId,
+        CancellationToken cancellationToken)
+    {
+        return await _mapCalibrationService.ReadAsync(
+            GetProcessedDirectory(mapId),
+            cancellationToken);
     }
 
     public string GetChunkPath(string mapId, int chunkX, int chunkY)

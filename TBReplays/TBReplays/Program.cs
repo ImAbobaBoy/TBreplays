@@ -1,6 +1,7 @@
 using System.Text.Json;
 using TBReplays.Dvpl;
 using TBReplays.Maps;
+using TBReplays.Maps.Calibration;
 using TBReplays.Replays;
 using TBReplays.Sc2;
 using TBReplays.Scg;
@@ -35,6 +36,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton<DvplDecoder>();
 builder.Services.AddSingleton<DavaHeightmapReader>();
 builder.Services.AddSingleton<TerrainChunkExporter>();
+builder.Services.AddSingleton<MapCalibrationService>();
 
 builder.Services.AddSingleton<Sc2SceneReader>();
 builder.Services.AddSingleton<Sc2MapObjectExtractor>();
