@@ -1,0 +1,95 @@
+{
+  "mapId": "07_fort_ft-278b246e",
+  "mapKey": "33_neptune_nt",
+  "replayMapName": null,
+  "world": {
+    "horizontalHalfExtent": 300
+  },
+  "height": {
+    "scale": 0.001,
+    "offset": 0,
+    "source": "manual-debug-ui",
+    "confidence": 0,
+    "note": "Fallback \u043F\u043E\u0432\u0442\u043E\u0440\u044F\u0435\u0442 \u0441\u0442\u0430\u0440\u0443\u044E \u043B\u043E\u0433\u0438\u043A\u0443 MaxZ=82. \u041D\u0443\u0436\u043D\u0430 \u0440\u0443\u0447\u043D\u0430\u044F/replay \u043A\u0430\u043B\u0438\u0431\u0440\u043E\u0432\u043A\u0430."
+  },
+  "terrainTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": true,
+    "rotationDegrees": 0
+  },
+  "replayTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": false,
+    "rotationDegrees": 0
+  },
+  "objects": {
+    "heightOffset": 9.35
+  },
+  "texture": {
+    "rotationDegrees": 0,
+    "flipU": false,
+    "flipV": true
+  },
+  "surface": {
+    "colorTexturePath": "33_neptune_nt/landscape/colorTexture_nt.dx11.dds.dvpl",
+    "tileMaskPath": "33_neptune_nt/landscape/tileMask_nt.dx11.pvr.dvpl",
+    "tileTexture0Path": "33_neptune_nt/landscape/tileTexture0.dx11.pvr.dvpl",
+    "landscapeTexturePaths": [
+      "33_neptune_nt/landscape/colorTexture_nt.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/fake_shadow_potato.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/fake_shadow_rye.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/fake_shadow_tall_grass.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/fake_shadow_tansy.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/fake_shadow.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/flora_grass_color_pbr.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/flora_grass_color.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/grass_lightmaps.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/neptune_flora_grass_edge_map_potato.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/neptune_flora_potato_color.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/neptune_flora_potato_pbr_color.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/neptune_flora_rye_color.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/neptune_flora_rye_pbr_color.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/neptune_rye_edge_map.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/pbrAlbedoRoughnessMap_nt.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/pbrLandscapeNormalMap_nt.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/surroundings/Plane_BC.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/surroundings/tile_edge.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/tileAlbedoHeightArray_0.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/tileAlbedoHeightArray_1.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/tileAlbedoHeightArray_2.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/tileAlbedoHeightArray_3.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/tileHeightTexture.dx11.pvr.dvpl",
+      "33_neptune_nt/landscape/tileMask_nt.dx11.pvr.dvpl",
+      "33_neptune_nt/landscape/tileMaskHeightBlend_nt.dx11.pvr.dvpl",
+      "33_neptune_nt/landscape/tileNormalArray_0.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/tileNormalArray_1.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/tileNormalArray_2.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/tileNormalArray_3.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/tileRoughnessAOArray_0.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/tileRoughnessAOArray_1.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/tileRoughnessAOArray_2.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/tileRoughnessAOArray_3.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/tileTexture0.dx11.pvr.dvpl",
+      "33_neptune_nt/landscape/water/Cubemap/cubemap_neptune.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/water/images/water_decal.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/water/images/waves_dm.dx11.pvr.dvpl",
+      "33_neptune_nt/landscape/water/images/waves_flow_map.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/water/images/waves_foamMask_nt.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/water/images/waves_nt.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/water/images/wavesMask_nt.dx11.pvr.dvpl",
+      "33_neptune_nt/landscape/water/water_normal5.dx11.dds.dvpl",
+      "33_neptune_nt/landscape/water/water.dx11.dds.dvpl"
+    ]
+  },
+  "heightmapStats": {
+    "size": 2048,
+    "tileSize": 16,
+    "rawMin": 11860,
+    "rawMax": 60361,
+    "rawP01": 13176,
+    "rawP50": 45395,
+    "rawP99": 58489
+  }
+}

@@ -1,0 +1,317 @@
+.panel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  padding: 14px;
+  border-radius: 16px;
+
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid #1e293b;
+
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.24);
+}
+
+.panel-title {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.panel-subtitle {
+  margin-top: 8px;
+
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.field span {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.field input {
+  width: 100%;
+  box-sizing: border-box;
+
+  padding: 9px 10px;
+
+  color: #e2e8f0;
+  background: #020617;
+
+  border: 1px solid #334155;
+  border-radius: 10px;
+
+  outline: none;
+}
+
+.field input:focus {
+  border-color: #38bdf8;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.button-row button,
+.tool-grid button {
+  padding: 9px 11px;
+
+  color: #020617;
+  background: #38bdf8;
+
+  border-radius: 10px;
+
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.hint {
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 8px;
+
+  font-size: 13px;
+}
+
+.kv span {
+  color: #94a3b8;
+}
+
+.kv strong {
+  min-width: 0;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  color: #e2e8f0;
+}
+
+.field select {
+  width: 100%;
+  box-sizing: border-box;
+
+  padding: 9px 10px;
+
+  color: #e2e8f0;
+  background: #020617;
+
+  border: 1px solid #334155;
+  border-radius: 10px;
+
+  outline: none;
+}
+
+.field select:focus {
+  border-color: #38bdf8;
+}
+
+.range-input {
+  width: 100%;
+  accent-color: #38bdf8;
+}
+
+.check-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.check-field input {
+  accent-color: #38bdf8;
+}
+
+.debug-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  padding: 10px;
+  border: 1px solid rgba(51, 65, 85, 0.72);
+  border-radius: 14px;
+
+  background: rgba(2, 6, 23, 0.28);
+}
+
+.number-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-help {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.debug-check-field {
+  align-items: flex-start;
+}
+
+.debug-check-field span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.debug-check-field small {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.wide-kv {
+  grid-template-columns: 110px minmax(0, 1fr);
+}
+
+.drawing-tools {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.drawing-tools button {
+  padding: 9px 11px;
+
+  color: #cbd5e1;
+  background: #0f172a;
+
+  border: 1px solid #334155;
+  border-radius: 10px;
+
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.drawing-tools button.active {
+  color: #020617;
+  background: #facc15;
+  border-color: #facc15;
+}
+
+.drawing-tools button.danger {
+  color: #fecaca;
+  border-color: #7f1d1d;
+}
+
+.drawing-tools button.danger.active {
+  color: #020617;
+  background: #fb7185;
+  border-color: #fb7185;
+}
+
+.color-palette {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.color-palette > button {
+  width: 28px;
+  height: 28px;
+
+  border: 2px solid rgba(226, 232, 240, 0.3);
+  border-radius: 999px;
+
+  cursor: pointer;
+}
+
+.color-palette > button.active {
+  border-color: #f8fafc;
+  box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.32);
+}
+
+.color-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.color-picker input {
+  width: 34px;
+  height: 28px;
+  padding: 0;
+
+  background: transparent;
+  border: 1px solid #334155;
+  border-radius: 8px;
+
+  cursor: pointer;
+}
+
+.tank-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  padding: 10px;
+  border: 1px solid rgba(51, 65, 85, 0.72);
+  border-radius: 14px;
+
+  background: rgba(15, 23, 42, 0.38);
+}
+
+.tank-editor input[type='color'] {
+  width: 48px;
+  height: 32px;
+  padding: 0;
+
+  background: transparent;
+  border: 1px solid #334155;
+  border-radius: 8px;
+
+  cursor: pointer;
+}
+
+.danger-action {
+  padding: 9px 11px;
+
+  color: #fecaca;
+  background: #1f0f16;
+
+  border: 1px solid #7f1d1d;
+  border-radius: 10px;
+
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.danger-action:hover {
+  color: #020617;
+  background: #fb7185;
+  border-color: #fb7185;
+}
