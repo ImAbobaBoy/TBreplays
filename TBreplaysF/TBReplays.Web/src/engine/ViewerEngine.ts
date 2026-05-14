@@ -4,18 +4,25 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { AppMode } from '../app/AppMode';
 import type { ViewerTool } from '../app/AppState';
 import { TBReplaysApi } from '../api/TBReplaysApi';
-import type { ManualTankModel } from '../domain/TankModels';
 import type { MapCalibration } from '../domain/MapCalibration';
 import type { MapManifest } from '../domain/MapModels';
+import type {
+  ReplayPlaybackState,
+  ReplayTimelineSummary,
+} from '../domain/ReplayModels';
+import type { ManualTankModel } from '../domain/TankModels';
 import { DrawingLayer } from './layers/DrawingLayer';
 import { MapEffectsLayer } from './layers/MapEffectsLayer';
+import { ObjectMeshLayer } from './layers/ObjectMeshLayer';
+import { ReplayLayer } from './layers/ReplayLayer';
+import { SurfaceTextureLayer } from './layers/SurfaceTextureLayer';
 import {
   TankLayer,
   type TankLayerHandlers,
 } from './layers/TankLayer';
-import { ObjectMeshLayer } from './layers/ObjectMeshLayer';
-import { SurfaceTextureLayer } from './layers/SurfaceTextureLayer';
 import { TerrainLayer } from './layers/TerrainLayer';
+import { ReplayPlaybackController } from './replay/ReplayPlaybackController';
+import { buildReplayTimeline } from './replay/ReplayTrackBuilder';
 
 export class ViewerEngine {
   private readonly container: HTMLDivElement;
@@ -44,12 +51,17 @@ export class ViewerEngine {
   private readonly mapEffectsLayer: MapEffectsLayer;
   private readonly drawingLayer: DrawingLayer;
   private readonly tankLayer: TankLayer;
+  private readonly replayLayer: ReplayLayer;
+  private readonly replayPlaybackController = new ReplayPlaybackController();
 
   private readonly resizeObserver: ResizeObserver;
 
   private currentMapId: string | null = null;
   private currentCalibration: MapCalibration | null = null;
   private currentManifest: MapManifest | null = null;
+
+  private replayPlaybackChangedHandler: ((state: ReplayPlaybackState) => void) | null = null;
+  private lastReplayPlaybackNotificationAt = 0;
 
   private mode: AppMode = 'workspace';
   private disposed = false;
@@ -95,32 +107,32 @@ export class ViewerEngine {
     this.controls.update();
 
     this.terrainLayer = new TerrainLayer(
-        this.terrainRoot,
-        this.api,
+      this.terrainRoot,
+      this.api,
     );
 
     this.surfaceTextureLayer = new SurfaceTextureLayer(
-        this.api,
-        this.renderer,
+      this.api,
+      this.renderer,
     );
 
     this.objectMeshLayer = new ObjectMeshLayer(
-        this.objectRoot,
-        this.api,
-        this.renderer,
+      this.objectRoot,
+      this.api,
+      this.renderer,
     );
 
     this.mapEffectsLayer = new MapEffectsLayer(
-        this.effectsRoot,
-        this.api,
+      this.effectsRoot,
+      this.api,
     );
 
     this.drawingLayer = new DrawingLayer(
-        this.drawingsRoot,
-        this.terrainRoot,
-        this.camera,
-        this.renderer,
-        this.controls,
+      this.drawingsRoot,
+      this.terrainRoot,
+      this.camera,
+      this.renderer,
+      this.controls,
     );
 
     this.tankLayer = new TankLayer(
@@ -131,7 +143,10 @@ export class ViewerEngine {
       this.controls,
     );
 
+    this.replayLayer = new ReplayLayer(this.replayRoot);
+
     this.configureScene();
+
     this.resizeObserver = new ResizeObserver(() => {
       this.resize();
     });
@@ -148,6 +163,7 @@ export class ViewerEngine {
 
     this.debugRoot.visible = mode === 'debugCalibration';
     this.workspaceRoot.visible = mode === 'workspace';
+
     this.drawingLayer.setEnabled(mode === 'workspace');
     this.tankLayer.setEnabled(mode === 'workspace');
   }
@@ -185,11 +201,115 @@ export class ViewerEngine {
     this.tankLayer.clear();
   }
 
+  public setReplayPlaybackChangedHandler(
+    handler: ((state: ReplayPlaybackState) => void) | null,
+  ): void {
+    this.replayPlaybackChangedHandler = handler;
+  }
+
+  public async importLocalReplay(): Promise<string> {
+    const result = await this.api.parseLocalReplay();
+
+    return result.replayId;
+  }
+
+  public async loadReplay(replayId: string): Promise<ReplayTimelineSummary> {
+    const safeReplayId = replayId.trim();
+
+    if (!safeReplayId) {
+      throw new Error('Replay ID пустой.');
+    }
+
+    // TODO: Совместный просмотр.
+    // Сейчас клиент локально загружает parse-result и строит ReplayTimeline.
+    // Потом SignalR должен рассылать только команду loadReplay(replayId, mapId, revision),
+    // а каждый браузер сам загрузит parse-result по replayId и повторит сценарий.
+    const parseResult = await this.api.getReplayParseResult(safeReplayId);
+    const timeline = buildReplayTimeline(safeReplayId, parseResult);
+
+    this.replayLayer.load(timeline, this.currentCalibration);
+
+    const playback = this.replayPlaybackController.loadReplay(
+      timeline.replayId,
+      timeline.minTime,
+      timeline.maxTime,
+    );
+
+    this.replayLayer.setTime(playback.time);
+    this.notifyReplayPlaybackChanged(playback, true);
+
+    return {
+      replayId: timeline.replayId,
+      mapName: timeline.mapName,
+      mapId: timeline.mapId,
+      minTime: timeline.minTime,
+      maxTime: timeline.maxTime,
+      trackCount: timeline.trackCount,
+      sampleCount: timeline.sampleCount,
+    };
+  }
+
+  public clearReplay(): void {
+    this.replayLayer.clear();
+
+    const playback = this.replayPlaybackController.clear();
+
+    this.notifyReplayPlaybackChanged(playback, true);
+  }
+
+  public playReplay(): ReplayPlaybackState {
+    const playback = this.replayPlaybackController.play(performance.now());
+
+    this.replayLayer.setTime(playback.time);
+    this.notifyReplayPlaybackChanged(playback, true);
+
+    return playback;
+  }
+
+  public pauseReplay(): ReplayPlaybackState {
+    const playback = this.replayPlaybackController.pause();
+
+    this.replayLayer.setTime(playback.time);
+    this.notifyReplayPlaybackChanged(playback, true);
+
+    return playback;
+  }
+
+  public seekReplayTo(time: number): ReplayPlaybackState {
+    const playback = this.replayPlaybackController.seekTo(time);
+
+    this.replayLayer.setTime(playback.time);
+    this.notifyReplayPlaybackChanged(playback, true);
+
+    return playback;
+  }
+
+  public seekReplayBy(deltaSeconds: number): ReplayPlaybackState {
+    const playback = this.replayPlaybackController.seekBy(deltaSeconds);
+
+    this.replayLayer.setTime(playback.time);
+    this.notifyReplayPlaybackChanged(playback, true);
+
+    return playback;
+  }
+
+  public setReplaySpeed(speed: number): ReplayPlaybackState {
+    const playback = this.replayPlaybackController.setSpeed(speed);
+
+    this.notifyReplayPlaybackChanged(playback, true);
+
+    return playback;
+  }
+
+  public getReplayPlaybackState(): ReplayPlaybackState {
+    return this.replayPlaybackController.getState();
+  }
+
   public async loadMap(mapId: string): Promise<void> {
     const safeMapId = mapId.trim();
 
     if (!safeMapId) {
-        throw new Error('Map ID пустой.');
+      throw new Error('Map ID пустой.');
     }
 
     this.clearMap();
@@ -215,24 +335,28 @@ export class ViewerEngine {
 
     await this.terrainLayer.load(manifest, calibration);
 
+    this.replayLayer.setCalibration(calibration);
+
     await Promise.allSettled([
       this.objectMeshLayer.load(safeMapId),
       this.mapEffectsLayer.load(safeMapId, calibration),
     ]);
 
     this.focusCameraOnObject(this.mapRoot);
-    }
+  }
 
-    public clearMap(): void {
-      this.surfaceTextureLayer.clear();
-      this.terrainLayer.clear();
-      this.objectMeshLayer.clear();
-      this.mapEffectsLayer.clear();
-      this.drawingLayer.clear();
-      this.tankLayer.clear();
-    }
+  public clearMap(): void {
+    this.surfaceTextureLayer.clear();
+    this.terrainLayer.clear();
+    this.objectMeshLayer.clear();
+    this.mapEffectsLayer.clear();
+    this.drawingLayer.clear();
+    this.tankLayer.clear();
 
-    public async previewCalibration(calibration: MapCalibration): Promise<void> {
+    this.clearReplay();
+  }
+
+  public async previewCalibration(calibration: MapCalibration): Promise<void> {
     if (!this.currentMapId || !this.currentManifest) {
       throw new Error('Сначала загрузи карту.');
     }
@@ -246,7 +370,10 @@ export class ViewerEngine {
     );
 
     this.terrainLayer.setTexture(terrainTexture);
+
     await this.terrainLayer.load(this.currentManifest, calibration);
+
+    this.replayLayer.setCalibration(calibration);
   }
 
   public async saveCalibration(
@@ -256,6 +383,7 @@ export class ViewerEngine {
     const saved = await this.api.saveMapCalibration(mapId, calibration);
 
     this.currentCalibration = saved;
+
     await this.previewCalibration(saved);
 
     return saved;
@@ -269,7 +397,6 @@ export class ViewerEngine {
     this.disposed = true;
 
     this.resizeObserver.disconnect();
-
     this.renderer.setAnimationLoop(null);
 
     this.surfaceTextureLayer.dispose();
@@ -278,10 +405,12 @@ export class ViewerEngine {
     this.mapEffectsLayer.dispose();
     this.drawingLayer.dispose();
     this.tankLayer.dispose();
+    this.replayLayer.dispose();
 
     this.currentMapId = null;
     this.currentManifest = null;
     this.currentCalibration = null;
+    this.replayPlaybackChangedHandler = null;
 
     this.disposeObject(this.scene);
 
@@ -314,12 +443,12 @@ export class ViewerEngine {
     }
   }
 
-    private createFallbackCalibration(
+  private createFallbackCalibration(
     mapId: string,
     manifest: MapManifest,
   ): MapCalibration {
     return {
-            mapId,
+      mapId,
       mapKey: mapId,
       replayMapName: null,
       world: {
@@ -373,27 +502,29 @@ export class ViewerEngine {
     };
   }
 
-    private async tryLoadTerrainTexture(
+  private async tryLoadTerrainTexture(
     mapId: string,
     calibration: MapCalibration | null,
-    ): Promise<THREE.Texture | null> {
+  ): Promise<THREE.Texture | null> {
     try {
-        return await this.surfaceTextureLayer.load(
+      return await this.surfaceTextureLayer.load(
         mapId,
         calibration,
-        );
+      );
     } catch (error) {
-        console.warn('Terrain texture не загрузилась:', error);
-        return null;
-    }
-    }
+      console.warn('Terrain texture не загрузилась:', error);
 
-    private focusCameraOnObject(object: THREE.Object3D): void {
+      return null;
+    }
+  }
+
+  private focusCameraOnObject(object: THREE.Object3D): void {
     const box = new THREE.Box3().setFromObject(object);
 
     if (box.isEmpty()) {
-        console.warn('Нечего фокусировать: bounding box пустой.');
-        return;
+      console.warn('Нечего фокусировать: bounding box пустой.');
+
+      return;
     }
 
     const center = new THREE.Vector3();
@@ -408,9 +539,9 @@ export class ViewerEngine {
     this.controls.target.copy(center);
 
     this.camera.position.set(
-        center.x,
-        center.y + distance * 0.75,
-        center.z + distance,
+      center.x,
+      center.y + distance * 0.75,
+      center.z + distance,
     );
 
     this.camera.near = 0.1;
@@ -418,7 +549,7 @@ export class ViewerEngine {
     this.camera.updateProjectionMatrix();
 
     this.controls.update();
-    }
+  }
 
   private configureScene(): void {
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
@@ -444,7 +575,11 @@ export class ViewerEngine {
     this.mapRoot.add(this.effectsRoot);
 
     this.scene.add(this.mapRoot);
+
+    // ReplayRoot намеренно не лежит внутри workspaceRoot/debugRoot.
+    // Так replay виден и в рабочем режиме, и в debug/calibration mode.
     this.scene.add(this.replayRoot);
+
     this.scene.add(this.debugRoot);
 
     this.workspaceRoot.add(this.drawingsRoot);
@@ -491,9 +626,33 @@ export class ViewerEngine {
     this.workspaceRoot.add(marker);
   }
 
-  private render(_timestamp: number): void {
+  private notifyReplayPlaybackChanged(
+    playback: ReplayPlaybackState,
+    force: boolean,
+    timestamp = performance.now(),
+  ): void {
+    if (!this.replayPlaybackChangedHandler) {
+      return;
+    }
+
+    if (!force && timestamp - this.lastReplayPlaybackNotificationAt < 100) {
+      return;
+    }
+
+    this.lastReplayPlaybackNotificationAt = timestamp;
+    this.replayPlaybackChangedHandler(playback);
+  }
+
+  private render(timestamp: number): void {
     if (this.disposed) {
       return;
+    }
+
+    const playback = this.replayPlaybackController.update(timestamp);
+
+    if (playback) {
+      this.replayLayer.setTime(playback.time);
+      this.notifyReplayPlaybackChanged(playback, false, timestamp);
     }
 
     this.controls.update();

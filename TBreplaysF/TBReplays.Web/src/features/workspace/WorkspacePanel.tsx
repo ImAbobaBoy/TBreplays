@@ -13,6 +13,8 @@ type WorkspacePanelProps = {
   onMapIdChange: (mapId: string) => void;
   onReplayIdChange: (replayId: string) => void;
   onLoadMap: () => void;
+  onImportLocalReplay: () => void;
+  onLoadReplay: () => void;
   onSelectedToolChange: (tool: ViewerTool) => void;
   onDrawingColorChange: (color: string) => void;
   onClearDrawings: () => void;
@@ -22,7 +24,7 @@ type WorkspacePanelProps = {
 };
 
 const drawingColors = [
-  '#ffff00',
+  '#facc15',
   '#ffffff',
   '#ef4444',
   '#22c55e',
@@ -34,10 +36,10 @@ const tankVisualOptions: Array<{
   value: TankVisualKey;
   label: string;
 }> = [
-  { value: 'light', label: 'Лёгкий' },
-  { value: 'medium', label: 'Средний' },
-  { value: 'heavy', label: 'Тяжёлый' },
-  { value: 'td', label: 'ПТ-САУ' },
+  { value: 'light', label: 'ЛТ' },
+  { value: 'medium', label: 'СТ' },
+  { value: 'heavy', label: 'ТТ' },
+  { value: 'td', label: 'ПТ' },
 ];
 
 const tankTeamOptions: Array<{
@@ -45,7 +47,7 @@ const tankTeamOptions: Array<{
   label: string;
 }> = [
   { value: 'neutral', label: 'Нейтральный' },
-  { value: 'ally', label: 'Союзник' },
+  { value: 'ally', label: 'Союзники' },
   { value: 'enemy', label: 'Противник' },
 ];
 
@@ -54,6 +56,8 @@ export function WorkspacePanel({
   onMapIdChange,
   onReplayIdChange,
   onLoadMap,
+  onImportLocalReplay,
+  onLoadReplay,
   onSelectedToolChange,
   onDrawingColorChange,
   onClearDrawings,
@@ -91,66 +95,155 @@ export function WorkspacePanel({
       },
     });
   };
+
   return (
-    <section className="panel-card">
-      <div className="panel-title">Рабочая поверхность</div>
+    <section className="panel-card workspace-card">
+      <div className="panel-kicker">ДЕЙСТВИЯ</div>
 
-      <label className="field">
-        <span>Map ID</span>
-        <input
-          value={state.mapId}
-          onChange={(event) => onMapIdChange(event.target.value)}
-          placeholder="18_canal_cn-..."
-        />
-      </label>
+      <div className="load-grid">
+        <label className="field field--compact">
+          <span>Map ID</span>
+          <input
+            value={state.mapId}
+            onChange={(event) => onMapIdChange(event.target.value)}
+            placeholder="18_canal_cn-..."
+          />
+        </label>
 
-      <label className="field">
-        <span>Replay ID</span>
-        <input
-          value={state.replayId}
-          onChange={(event) => onReplayIdChange(event.target.value)}
-          placeholder="battle-..."
-        />
-      </label>
+        <button className="action-button action-button--primary" onClick={onLoadMap}>
+          <span className="action-icon">↥</span>
+          <span>Загрузить карту</span>
+        </button>
 
-      <div className="button-row">
-        <button onClick={onLoadMap}>Загрузить карту</button>
-        <button disabled>Загрузить replay</button>
+        <label className="field field--compact">
+          <span>Replay ID</span>
+          <input
+            value={state.replayId}
+            onChange={(event) => onReplayIdChange(event.target.value)}
+            placeholder="replay id"
+          />
+        </label>
+
+        <button className="action-button" onClick={onImportLocalReplay}>
+          <span className="action-icon">⟳</span>
+          <span>Импорт replay</span>
+        </button>
+
+        <button className="action-button" onClick={onLoadReplay}>
+          <span className="action-icon">▶</span>
+          <span>Загрузить replay</span>
+        </button>
+
+        <button className="action-button" disabled title="Функция импорта картинки карты пока не подключена в props/API.">
+          <span className="action-icon">▧</span>
+          <span>Импорт картинки</span>
+        </button>
       </div>
 
-      <div className="panel-subtitle">Рисовалка</div>
+      <div className="panel-kicker">ИНСТРУМЕНТЫ</div>
 
-      <div className="drawing-tools">
-        <button
-          className={state.selectedTool === 'select' ? 'active' : ''}
+      <div className="tool-grid tool-grid--workspace">
+        <ToolButton
+          active={state.selectedTool === 'select'}
+          icon="↖"
+          title="Камера / выбор"
+          description="орбита и drag объектов"
           onClick={() => onSelectedToolChange('select')}
-        >
-          Камера / выбор
-        </button>
+        />
 
-        <button
-          className={state.selectedTool === 'draw' ? 'active' : ''}
+        <ToolButton
+          active={state.selectedTool === 'draw'}
+          icon="⌁"
+          title="Рисовать линию"
+          description="drag по terrain"
           onClick={() => onSelectedToolChange('draw')}
-        >
-          Рисовать линию
-        </button>
+        />
 
-        <button
-          className={state.selectedTool === 'erase' ? 'active danger' : 'danger'}
+        <ToolButton
+          active={state.selectedTool === 'erase'}
+          tone="danger"
+          icon="⌫"
+          title="Ластик по линии"
+          description="удаляет линию целиком"
           onClick={() => onSelectedToolChange('erase')}
-        >
-          Ластик по линии
-        </button>
+        />
 
-        <button
-          className={state.selectedTool === 'tankPlacement' ? 'active' : ''}
+        <ToolButton
+          active={state.selectedTool === 'tankPlacement'}
+          icon="▰"
+          title="Поставить танк"
+          description="клик по terrain"
           onClick={() => onSelectedToolChange('tankPlacement')}
-        >
-          Поставить танк
-        </button>
+        />
 
-        <button onClick={onClearDrawings}>Очистить линии</button>
+        <ToolButton
+          active={state.selectedTool === 'tankAim'}
+          icon="◎"
+          title="Прострел / башня"
+          description="выбор точки огня"
+          onClick={() => onSelectedToolChange('tankAim')}
+        />
+
+        <ToolButton
+          disabled
+          icon="⚑"
+          title="Метки"
+          description="следующий слой"
+          onClick={() => onSelectedToolChange('marker')}
+        />
       </div>
+
+      {(state.selectedTool === 'draw' || state.selectedTool === 'erase') && (
+        <DrawingSettings
+          state={state}
+          onDrawingColorChange={onDrawingColorChange}
+          onClearDrawings={onClearDrawings}
+        />
+      )}
+
+      {(state.selectedTool === 'tankPlacement' || state.selectedTool === 'tankAim' || selectedTank) && (
+        <TankSettings
+          selectedTank={selectedTank}
+          selectedTool={state.selectedTool}
+          onSelectedToolChange={onSelectedToolChange}
+          onUpdateTank={updateSelectedTank}
+          onUpdateTankPose={updateSelectedTankPose}
+          onDeleteSelectedManualTank={onDeleteSelectedManualTank}
+          onClearManualTanks={onClearManualTanks}
+        />
+      )}
+
+      {state.selectedTool === 'select' && !selectedTank && (
+        <div className="context-help">
+          <strong>Быстрый сценарий</strong>
+          <span>Загрузи карту → импортируй replay → включи рисование или поставь ручной танк. Все replay controls вынесены наверх, чтобы они были доступны и в debug.</span>
+        </div>
+      )}
+
+      <div className="panel-kicker">БУДУЩИЙ ПЛАНИРОВЩИК</div>
+
+      <div className="future-grid">
+        <button disabled>Маркеры</button>
+        <button disabled>Стрелки</button>
+        <button disabled>Зоны</button>
+        <button disabled>Заметки</button>
+      </div>
+    </section>
+  );
+}
+
+function DrawingSettings({
+  state,
+  onDrawingColorChange,
+  onClearDrawings,
+}: {
+  state: AppState;
+  onDrawingColorChange: (color: string) => void;
+  onClearDrawings: () => void;
+}) {
+  return (
+    <section className="tool-settings-card">
+      <div className="panel-subtitle">Настройки линии</div>
 
       <div className="color-palette">
         {drawingColors.map((color) => (
@@ -164,7 +257,7 @@ export function WorkspacePanel({
         ))}
 
         <label className="color-picker">
-          <span>Свой</span>
+          <span>Свой цвет</span>
           <input
             type="color"
             value={state.drawingColor}
@@ -173,112 +266,123 @@ export function WorkspacePanel({
         </label>
       </div>
 
-      <div className="hint">
-        Выбери «Рисовать линию» и тяни мышью по terrain. Ластик удаляет всю линию целиком:
-        достаточно попасть по любому её участку.
+      <div className="button-row button-row--split">
+        <button onClick={onClearDrawings}>Очистить линии</button>
       </div>
 
-            <div className="panel-subtitle">Ручные танки</div>
+      <div className="hint hint--boxed">
+        Выбери цвет до рисования. «Ластик по линии» удаляет всю линию целиком — достаточно попасть по любому её участку.
+      </div>
+    </section>
+  );
+}
 
-      <div className="drawing-tools">
+function TankSettings({
+  selectedTank,
+  selectedTool,
+  onSelectedToolChange,
+  onUpdateTank,
+  onUpdateTankPose,
+  onDeleteSelectedManualTank,
+  onClearManualTanks,
+}: {
+  selectedTank: ManualTankModel | null;
+  selectedTool: ViewerTool;
+  onSelectedToolChange: (tool: ViewerTool) => void;
+  onUpdateTank: (patch: Partial<ManualTankModel>) => void;
+  onUpdateTankPose: (patch: Partial<ManualTankModel['pose']>) => void;
+  onDeleteSelectedManualTank: () => void;
+  onClearManualTanks: () => void;
+}) {
+  return (
+    <section className="tool-settings-card">
+      <div className="panel-subtitle">Настройки танка</div>
+
+      <div className="button-row button-row--split">
         <button
-          className={state.selectedTool === 'select' ? 'active' : ''}
+          className={selectedTool === 'tankPlacement' ? 'active-soft' : ''}
+          onClick={() => onSelectedToolChange('tankPlacement')}
+        >
+          Поставить танк
+        </button>
+
+        <button
+          className={selectedTool === 'select' ? 'active-soft' : ''}
           onClick={() => onSelectedToolChange('select')}
         >
           Выбрать / двигать
         </button>
-
-        <button onClick={onClearManualTanks}>Очистить танки</button>
       </div>
 
       {selectedTank ? (
-        <div className="tank-editor">
+        <>
+          <div className="selected-object-header">
+            <span>Выбран</span>
+            <strong>{selectedTank.label}</strong>
+          </div>
+
           <label className="field">
-            <span>Надпись над танком</span>
+            <span>Номер / подпись</span>
             <input
               value={selectedTank.label}
-              onChange={(event) => updateSelectedTank({
+              onChange={(event) => onUpdateTank({
                 label: event.target.value,
               })}
             />
           </label>
 
-          <label className="field">
-            <span>Тип танка</span>
-            <select
-              value={selectedTank.visualKey}
-              onChange={(event) => updateSelectedTank({
-                visualKey: event.target.value as TankVisualKey,
-              })}
-            >
-              {tankVisualOptions.map((option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                >
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="field">
+          <div className="segmented-field">
             <span>Команда</span>
-            <select
-              value={selectedTank.team}
-              onChange={(event) => updateSelectedTank({
-                team: event.target.value as TankTeamKind,
-              })}
-            >
+            <div>
               {tankTeamOptions.map((option) => (
-                <option
+                <button
                   key={option.value}
-                  value={option.value}
+                  className={selectedTank.team === option.value ? 'active' : ''}
+                  onClick={() => onUpdateTank({ team: option.value })}
                 >
                   {option.label}
-                </option>
+                </button>
               ))}
-            </select>
-          </label>
+            </div>
+          </div>
 
-          <label className="field">
+          <div className="segmented-field">
+            <span>Класс</span>
+            <div>
+              {tankVisualOptions.map((option) => (
+                <button
+                  key={option.value}
+                  className={selectedTank.visualKey === option.value ? 'active' : ''}
+                  onClick={() => onUpdateTank({ visualKey: option.value })}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <label className="field color-field">
             <span>Цвет танка</span>
             <input
               type="color"
               value={selectedTank.color}
-              onChange={(event) => updateSelectedTank({
+              onChange={(event) => onUpdateTank({
                 color: event.target.value,
               })}
             />
           </label>
 
-          <label className="field">
-            <span>Поворот корпуса: {selectedTank.pose.bodyYawDegrees.toFixed(0)}°</span>
-            <input
-              type="range"
-              min={-180}
-              max={180}
-              step={1}
-              value={selectedTank.pose.bodyYawDegrees}
-              onChange={(event) => updateSelectedTankPose({
-                bodyYawDegrees: event.target.valueAsNumber,
-              })}
-            />
-          </label>
+          <AngleSlider
+            label="Направление корпуса"
+            value={selectedTank.pose.bodyYawDegrees}
+            onChange={(value) => onUpdateTankPose({ bodyYawDegrees: value })}
+          />
 
-          <label className="field">
-            <span>Поворот башни: {selectedTank.pose.turretYawDegrees.toFixed(0)}°</span>
-            <input
-              type="range"
-              min={-180}
-              max={180}
-              step={1}
-              value={selectedTank.pose.turretYawDegrees}
-              onChange={(event) => updateSelectedTankPose({
-                turretYawDegrees: event.target.valueAsNumber,
-              })}
-            />
-          </label>
+          <AngleSlider
+            label="Поворот башни"
+            value={selectedTank.pose.turretYawDegrees}
+            onChange={(value) => onUpdateTankPose({ turretYawDegrees: value })}
+          />
 
           <div className="kv wide-kv">
             <span>Позиция</span>
@@ -288,32 +392,96 @@ export function WorkspacePanel({
           </div>
 
           <button
-            className="danger-action"
+            className={selectedTool === 'tankAim' ? 'active-soft full-width' : 'full-width'}
+            onClick={() => onSelectedToolChange('tankAim')}
+          >
+            Навести башню / поставить прострел
+          </button>
+
+          {selectedTank.aimTarget ? (
+            <div className="hint hint--boxed">
+              Точка прострела: {selectedTank.aimTarget.x.toFixed(1)} / {selectedTank.aimTarget.y.toFixed(1)} / {selectedTank.aimTarget.z.toFixed(1)}. В режиме прострела перетащи голубую точку или кликни в новое место.
+            </div>
+          ) : (
+            <div className="hint hint--boxed">
+              Нажми «Навести башню / поставить прострел» и кликни по terrain. Башня повернётся в выбранную точку.
+            </div>
+          )}
+
+          <button
+            className="danger-action full-width"
             onClick={onDeleteSelectedManualTank}
           >
             Удалить выбранный танк
           </button>
-        </div>
+        </>
       ) : (
-        <div className="hint">
-          Нажми «Поставить танк» и кликни по terrain. Потом в режиме «Выбрать / двигать»
-          танк можно перетаскивать мышью.
+        <div className="empty-note">
+          Поставь танк кликом по terrain или выбери существующий в режиме «Камера / выбор». После выбора здесь появятся команда, класс, корпус, башня и прострел.
         </div>
       )}
 
-      <div className="panel-subtitle">Будущие инструменты</div>
-
-      <div className="tool-grid">
-        <button disabled>Маркер</button>
-        <button disabled>Танк</button>
-        <button disabled>Стрелка</button>
-        <button disabled>Зона</button>
-      </div>
-
-      <div className="hint">
-        Следующий слой — стратегический планировщик: маркеры, стрелки, зоны, ручная постановка танков,
-        экспорт разбора и совместный просмотр.
-      </div>
+      <button className="danger-action danger-action--subtle full-width" onClick={onClearManualTanks}>
+        Очистить все ручные танки
+      </button>
     </section>
+  );
+}
+
+function ToolButton({
+  active,
+  disabled,
+  icon,
+  title,
+  description,
+  tone,
+  onClick,
+}: {
+  active?: boolean;
+  disabled?: boolean;
+  icon: string;
+  title: string;
+  description: string;
+  tone?: 'danger';
+  onClick: () => void;
+}) {
+  const className = [
+    'tool-button',
+    active ? 'active' : '',
+    tone === 'danger' ? 'tool-button--danger' : '',
+  ].filter(Boolean).join(' ');
+
+  return (
+    <button className={className} disabled={disabled} onClick={onClick}>
+      <span className="tool-icon">{icon}</span>
+      <span>
+        <strong>{title}</strong>
+        <small>{description}</small>
+      </span>
+    </button>
+  );
+}
+
+function AngleSlider({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="field angle-field">
+      <span>{label}: {value.toFixed(0)}°</span>
+      <input
+        type="range"
+        min={-180}
+        max={180}
+        step={1}
+        value={value}
+        onChange={(event) => onChange(event.target.valueAsNumber)}
+      />
+    </label>
   );
 }

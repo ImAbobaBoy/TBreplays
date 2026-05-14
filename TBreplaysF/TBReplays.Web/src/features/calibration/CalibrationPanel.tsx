@@ -22,33 +22,43 @@ export function CalibrationPanel({
   onSaveCalibration,
 }: CalibrationPanelProps) {
   return (
-    <section className="panel-card">
-      <div className="panel-title">Debug / калибровка</div>
-
-      <label className="field">
-        <span>Map ID</span>
-        <input
-          value={state.mapId}
-          onChange={(event) => onMapIdChange(event.target.value)}
-          placeholder="18_canal_cn-..."
-        />
-      </label>
-
-      <label className="field">
-        <span>Debug Replay ID</span>
-        <input
-          value={state.replayId}
-          onChange={(event) => onReplayIdChange(event.target.value)}
-          placeholder="canal-debug-..."
-        />
-      </label>
-
-      <div className="button-row">
-        <button onClick={onLoadMap}>Загрузить карту</button>
-        <button disabled>Загрузить debug replay</button>
+    <section className="panel-card calibration-card">
+      <div>
+        <div className="panel-kicker">DEBUG MODE</div>
+        <div className="panel-title">Калибровка карты</div>
+        <div className="panel-caption">
+          Настройка размера, высоты, ориентации terrain/replay и surface bindings. Replay controls остаются наверху, чтобы сверять траектории прямо во время подгонки.
+        </div>
       </div>
 
-      <div className="panel-subtitle">Калибровка карты</div>
+      <div className="load-grid load-grid--calibration">
+        <label className="field field--compact">
+          <span>Map ID</span>
+          <input
+            value={state.mapId}
+            onChange={(event) => onMapIdChange(event.target.value)}
+            placeholder="18_canal_cn-..."
+          />
+        </label>
+
+        <button className="action-button action-button--primary" onClick={onLoadMap}>
+          <span className="action-icon">↥</span>
+          <span>Загрузить карту</span>
+        </button>
+
+        <label className="field field--compact">
+          <span>Debug Replay ID</span>
+          <input
+            value={state.replayId}
+            onChange={(event) => onReplayIdChange(event.target.value)}
+            placeholder="replay id для сверки"
+          />
+        </label>
+      </div>
+
+      <div className="warning-note">
+        Инженерный режим меняет черновик map_calibration.json. Для просмотра результата нажимай «Применить черновик к карте», для записи на backend — «Сохранить map_calibration.json».
+      </div>
 
       <CalibrationDebugEditor
         calibration={state.calibration}
@@ -56,11 +66,6 @@ export function CalibrationPanel({
         onPreview={onPreviewCalibration}
         onSave={onSaveCalibration}
       />
-
-      <div className="hint">
-        Это инженерный режим. Поля ниже редактируют черновик map_calibration.json,
-        а кнопка «Применить черновик к карте» перестраивает viewer.
-      </div>
     </section>
   );
 }

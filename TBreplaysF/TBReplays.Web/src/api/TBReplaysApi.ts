@@ -1,5 +1,9 @@
 import type { MapCalibration } from '../domain/MapCalibration';
 import type {
+  ReplayParseLocalResult,
+  ReplayParseResult,
+} from '../domain/ReplayModels';
+import type {
   MapEffectSet,
   MapManifest,
   MapObjectMeshManifest,
@@ -52,6 +56,17 @@ export class TBReplaysApi {
     return await this.getJson<MapEffectSet>(`/api/maps/${mapId}/effects`);
   }
 
+  public async parseLocalReplay(): Promise<ReplayParseLocalResult> {
+    return await this.sendWithoutBody<ReplayParseLocalResult>(
+      '/api/replays/parse-local',
+      'POST',
+    );
+  }
+
+  public async getReplayParseResult(replayId: string): Promise<ReplayParseResult> {
+    return await this.getJson<ReplayParseResult>(`/api/replays/${replayId}/parse-result`);
+  }
+
   public createUrl(url: string): string {
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return url;
@@ -83,6 +98,22 @@ export class TBReplaysApi {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${url}`);
+    }
+
+    return await response.json() as T;
+  }
+
+  private async sendWithoutBody<T>(
+    url: string,
+    method: string,
+  ): Promise<T> {
+    const response = await fetch(this.createUrl(url), {
+      method,
+      cache: 'no-store',
     });
 
     if (!response.ok) {

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 
 import type { AppMode } from '../app/AppMode';
 import type { ViewerTool } from '../app/AppState';
+import type { ReplayPlaybackState } from '../domain/ReplayModels';
 import type { ManualTankModel } from '../domain/TankModels';
 import { ViewerEngine } from './ViewerEngine';
 
@@ -14,6 +15,7 @@ type ViewerHostProps = {
   onTankCreated: (tank: ManualTankModel) => void;
   onTankChanged: (tank: ManualTankModel) => void;
   onTankSelected: (tankId: string | null) => void;
+  onReplayPlaybackChanged: (playback: ReplayPlaybackState) => void;
   onEngineReady: (engine: ViewerEngine | null) => void;
 };
 
@@ -26,6 +28,7 @@ export function ViewerHost({
   onTankCreated,
   onTankChanged,
   onTankSelected,
+  onReplayPlaybackChanged,
   onEngineReady,
 }: ViewerHostProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -38,6 +41,10 @@ export function ViewerHost({
 
     const engine = new ViewerEngine(containerRef.current);
     engineRef.current = engine;
+
+    engine.setMode(mode);
+    engine.setTool(selectedTool);
+    engine.setDrawingColor(drawingColor);
     engine.setManualTanks(manualTanks);
     engine.setSelectedManualTankId(selectedManualTankId);
     engine.setTankLayerHandlers({
@@ -45,14 +52,21 @@ export function ViewerHost({
       onTankChanged,
       onTankSelected,
     });
+    engine.setReplayPlaybackChangedHandler(onReplayPlaybackChanged);
+
     onEngineReady(engine);
 
     return () => {
-        onEngineReady(null);
-        engine.dispose();
-        engineRef.current = null;
+      onEngineReady(null);
+      engine.setReplayPlaybackChangedHandler(null);
+      engine.dispose();
+      engineRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    engineRef.current?.setMode(mode);
+  }, [mode]);
 
   useEffect(() => {
     engineRef.current?.setTool(selectedTool);
@@ -62,7 +76,7 @@ export function ViewerHost({
     engineRef.current?.setDrawingColor(drawingColor);
   }, [drawingColor]);
 
-    useEffect(() => {
+  useEffect(() => {
     engineRef.current?.setManualTanks(manualTanks);
   }, [manualTanks]);
 
@@ -78,7 +92,14 @@ export function ViewerHost({
     });
   }, [onTankCreated, onTankChanged, onTankSelected]);
 
+  useEffect(() => {
+    engineRef.current?.setReplayPlaybackChangedHandler(onReplayPlaybackChanged);
+  }, [onReplayPlaybackChanged]);
+
   return (
-    <div className="viewer-host" ref={containerRef} />
+    <div
+      className="viewer-host"
+      ref={containerRef}
+    />
   );
 }

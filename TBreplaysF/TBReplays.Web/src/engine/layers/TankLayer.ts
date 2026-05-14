@@ -22,9 +22,16 @@ export type TankLayerHandlers = {
   onTankSelected?: (tankId: string | null) => void;
 };
 
+type TankAimVisual = {
+  root: THREE.Group;
+  targetMarker: THREE.Mesh;
+  tracer: THREE.Line;
+};
+
 type TankEntry = {
   model: ManualTankModel;
   visual: TankVisual;
+  aimVisual: TankAimVisual;
 };
 
 export class TankLayer {
@@ -43,6 +50,7 @@ export class TankLayer {
   private enabled = true;
   private selectedTankId: string | null = null;
   private draggedTankId: string | null = null;
+  private draggedAimTargetTankId: string | null = null;
   private nextTankNumber = 1;
 
   public constructor(
@@ -114,8 +122,7 @@ export class TankLayer {
         continue;
       }
 
-      this.root.remove(entry.visual.root);
-      disposeTankVisual(entry.visual);
+      this.disposeTankEntry(entry);
       this.tanks.delete(id);
     }
 
@@ -133,32 +140,24 @@ export class TankLayer {
           // Сейчас при смене цвета/типа танка пересоздаём весь primitive-visual.
           // Потом заменить на точечное обновление материалов/mesh variant, когда появятся нормальные tank assets.
           // Убрать пересоздание visual на каждый color input, когда будет TankVisualController.
-          this.root.remove(existing.visual.root);
-          disposeTankVisual(existing.visual);
+          this.disposeTankEntry(existing);
 
-          const visual = createTankVisual(tank);
-          this.root.add(visual.root);
-
-          this.tanks.set(tank.id, {
-            model: tank,
-            visual,
-          });
+          const nextEntry = this.createTankEntry(tank);
+          this.tanks.set(tank.id, nextEntry);
+          this.updateAimVisual(nextEntry);
 
           continue;
         }
 
         existing.model = tank;
         applyTankModelToVisual(tank, existing.visual);
+        this.updateAimVisual(existing);
         continue;
       }
 
-      const visual = createTankVisual(tank);
-      this.root.add(visual.root);
-
-      this.tanks.set(tank.id, {
-        model: tank,
-        visual,
-      });
+      const entry = this.createTankEntry(tank);
+      this.tanks.set(tank.id, entry);
+      this.updateAimVisual(entry);
     }
 
     this.updateSelectionState();
@@ -168,8 +167,7 @@ export class TankLayer {
     this.finishDrag();
 
     for (const entry of this.tanks.values()) {
-      this.root.remove(entry.visual.root);
-      disposeTankVisual(entry.visual);
+      this.disposeTankEntry(entry);
     }
 
     this.tanks.clear();
@@ -220,7 +218,28 @@ export class TankLayer {
       return;
     }
 
+    if (this.tool === 'tankAim') {
+      this.stopViewerEvent(event);
+      this.startAimTargetEdit(event);
+      return;
+    }
+
     if (this.tool !== 'select') {
+      return;
+    }
+
+    const aimTargetTankId = this.pickAimTargetTankId(event);
+
+    if (aimTargetTankId) {
+      this.stopViewerEvent(event);
+
+      this.selectedTankId = aimTargetTankId;
+      this.handlers.onTankSelected?.(aimTargetTankId);
+      this.updateSelectionState();
+
+      this.draggedAimTargetTankId = aimTargetTankId;
+      this.controls.enabled = false;
+
       return;
     }
 
@@ -241,7 +260,17 @@ export class TankLayer {
   };
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
-    if (!this.enabled || !this.draggedTankId) {
+    if (!this.enabled) {
+      return;
+    }
+
+    if (this.draggedAimTargetTankId) {
+      this.stopViewerEvent(event);
+      this.dragAimTarget(event);
+      return;
+    }
+
+    if (!this.draggedTankId) {
       return;
     }
 
@@ -250,7 +279,7 @@ export class TankLayer {
   };
 
   private readonly handlePointerUp = (event: PointerEvent): void => {
-    if (!this.draggedTankId) {
+    if (!this.draggedTankId && !this.draggedAimTargetTankId) {
       return;
     }
 
@@ -305,8 +334,95 @@ export class TankLayer {
     this.handlers.onTankChanged?.(nextTank);
   }
 
+    private startAimTargetEdit(event: PointerEvent): void {
+    if (!this.selectedTankId) {
+      const tankId = this.pickTankId(event);
+
+      if (tankId) {
+        this.selectedTankId = tankId;
+        this.handlers.onTankSelected?.(tankId);
+        this.updateSelectionState();
+      }
+
+      return;
+    }
+
+    const aimTargetTankId = this.pickAimTargetTankId(event);
+
+    if (aimTargetTankId === this.selectedTankId) {
+      this.draggedAimTargetTankId = aimTargetTankId;
+      this.controls.enabled = false;
+      return;
+    }
+
+    this.setAimTargetFromTerrain(event, this.selectedTankId);
+    this.draggedAimTargetTankId = this.selectedTankId;
+    this.controls.enabled = false;
+  }
+
+  private dragAimTarget(event: PointerEvent): void {
+    if (!this.draggedAimTargetTankId) {
+      return;
+    }
+
+    this.setAimTargetFromTerrain(event, this.draggedAimTargetTankId);
+  }
+
+  private setAimTargetFromTerrain(
+    event: PointerEvent,
+    tankId: string,
+  ): void {
+    const entry = this.tanks.get(tankId);
+    const point = this.pickTerrainPoint(event);
+
+    if (!entry || !point) {
+      return;
+    }
+
+    const nextTank = this.createTankWithAimTarget(entry.model, point);
+
+    entry.model = nextTank;
+    applyTankModelToVisual(nextTank, entry.visual);
+    this.updateAimVisual(entry);
+    this.handlers.onTankChanged?.(nextTank);
+  }
+
+  private createTankWithAimTarget(
+    tank: ManualTankModel,
+    point: THREE.Vector3,
+  ): ManualTankModel {
+    // TODO: Временное MVP-решение.
+    // Сейчас aimTarget хранится в viewer-world-v1, потому что точка выбирается raycast-ом по уже построенному terrain.
+    // Потом хранить aimTarget в map-space-v1 и пересчитывать в viewer через map_calibration.json.
+    // Убрать viewer-world aimTarget, когда появится backend-сохранение стратегического разбора.
+    const absoluteTurretYawDegrees = this.calculateWorldYawDegrees(
+      tank.pose.x,
+      tank.pose.z,
+      point.x,
+      point.z,
+    );
+
+    const turretYawDegrees = this.normalizeDegrees(
+      absoluteTurretYawDegrees - tank.pose.bodyYawDegrees,
+    );
+
+    return {
+      ...tank,
+      pose: {
+        ...tank.pose,
+        turretYawDegrees,
+      },
+      aimTarget: {
+        x: point.x,
+        y: point.y,
+        z: point.z,
+      },
+    };
+  }
+
   private finishDrag(): void {
     this.draggedTankId = null;
+    this.draggedAimTargetTankId = null;
     this.controls.enabled = true;
   }
 
@@ -332,6 +448,131 @@ export class TankLayer {
         turretYawDegrees: 0,
       },
     };
+  }
+
+    private createTankEntry(tank: ManualTankModel): TankEntry {
+    const visual = createTankVisual(tank);
+    const aimVisual = this.createAimVisual(
+      tank.id,
+      tank.color,
+    );
+
+    this.root.add(visual.root);
+    this.root.add(aimVisual.root);
+
+    return {
+      model: tank,
+      visual,
+      aimVisual,
+    };
+  }
+
+  private createAimVisual(
+    tankId: string,
+    color: string,
+  ): TankAimVisual {
+    // TODO: Временное MVP-решение.
+    // Сейчас прострел рисуется как обычная THREE.Line + Sphere marker.
+    // Потом заменить на отдельный ShotTracerLayer с толщиной, стрелкой, дальностью, пробитием и типом снаряда.
+    // Убрать простую Line, когда появится полноценный tactical shot/tracer renderer.
+    const root = new THREE.Group();
+    root.name = `manual_tank_aim_${tankId}`;
+
+    const markerMaterial = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(color),
+      transparent: true,
+      opacity: 0.88,
+      depthTest: false,
+    });
+
+    const targetMarker = new THREE.Mesh(
+      new THREE.SphereGeometry(1.15, 18, 12),
+      markerMaterial,
+    );
+
+    targetMarker.name = 'manual_tank_aim_target';
+    targetMarker.renderOrder = 1200;
+    targetMarker.userData.kind = 'manualTankAimTarget';
+    targetMarker.userData.manualTankId = tankId;
+    root.add(targetMarker);
+
+    const tracer = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(),
+        new THREE.Vector3(),
+      ]),
+      new THREE.LineBasicMaterial({
+        color: new THREE.Color(color),
+        transparent: true,
+        opacity: 0.92,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
+
+    tracer.name = 'manual_tank_shot_tracer';
+    tracer.renderOrder = 1100;
+    tracer.userData.kind = 'manualTankShotTracer';
+    tracer.userData.manualTankId = tankId;
+    root.add(tracer);
+
+    root.visible = false;
+
+    return {
+      root,
+      targetMarker,
+      tracer,
+    };
+  }
+
+  private updateAimVisual(entry: TankEntry): void {
+    const aimTarget = entry.model.aimTarget;
+
+    if (!aimTarget) {
+      entry.aimVisual.root.visible = false;
+      return;
+    }
+
+    entry.aimVisual.root.visible = true;
+
+    const targetPosition = new THREE.Vector3(
+      aimTarget.x,
+      aimTarget.y + 0.25,
+      aimTarget.z,
+    );
+
+    entry.aimVisual.targetMarker.position.copy(targetPosition);
+
+    entry.visual.root.updateMatrixWorld(true);
+
+    const muzzlePosition = getTankMuzzleWorldPosition(entry.visual);
+
+    entry.aimVisual.tracer.geometry.dispose();
+    entry.aimVisual.tracer.geometry = new THREE.BufferGeometry().setFromPoints([
+      muzzlePosition,
+      targetPosition,
+    ]);
+  }
+
+  private pickAimTargetTankId(event: PointerEvent): string | null {
+    this.updatePointer(event);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+
+    const intersections = this.raycaster.intersectObjects(this.root.children, true);
+
+    for (const intersection of intersections) {
+      if (intersection.object.userData.kind !== 'manualTankAimTarget') {
+        continue;
+      }
+
+      const tankId = intersection.object.userData.manualTankId;
+
+      if (typeof tankId === 'string') {
+        return tankId;
+      }
+    }
+
+    return null;
   }
 
   private pickTankId(event: PointerEvent): string | null {
@@ -386,6 +627,63 @@ export class TankLayer {
   private updateSelectionState(): void {
     for (const [id, entry] of this.tanks.entries()) {
       setTankSelected(entry.visual, id === this.selectedTankId);
+    }
+  }
+
+    private calculateWorldYawDegrees(
+    fromX: number,
+    fromZ: number,
+    toX: number,
+    toZ: number,
+  ): number {
+    const deltaX = toX - fromX;
+    const deltaZ = toZ - fromZ;
+    const radians = Math.atan2(deltaX, deltaZ);
+
+    return THREE.MathUtils.radToDeg(radians);
+  }
+
+  private normalizeDegrees(degrees: number): number {
+    let normalized = degrees;
+
+    while (normalized > 180) {
+      normalized -= 360;
+    }
+
+    while (normalized < -180) {
+      normalized += 360;
+    }
+
+    return normalized;
+  }
+
+  private disposeTankEntry(entry: TankEntry): void {
+    this.root.remove(entry.visual.root);
+    this.root.remove(entry.aimVisual.root);
+
+    disposeTankVisual(entry.visual);
+    this.disposeAimVisual(entry.aimVisual);
+  }
+
+  private disposeAimVisual(aimVisual: TankAimVisual): void {
+    aimVisual.tracer.geometry.dispose();
+
+    if (Array.isArray(aimVisual.tracer.material)) {
+      for (const material of aimVisual.tracer.material) {
+        material.dispose();
+      }
+    } else {
+      aimVisual.tracer.material.dispose();
+    }
+
+    aimVisual.targetMarker.geometry.dispose();
+
+    if (Array.isArray(aimVisual.targetMarker.material)) {
+      for (const material of aimVisual.targetMarker.material) {
+        material.dispose();
+      }
+    } else {
+      aimVisual.targetMarker.material.dispose();
     }
   }
 

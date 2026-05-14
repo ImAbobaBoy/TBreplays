@@ -6,9 +6,9 @@
     "horizontalHalfExtent": 300
   },
   "height": {
-    "scale": 0.0012512398,
+    "scale": 0.0010812398,
     "offset": 0,
-    "source": "fallback-current-default",
+    "source": "manual-debug-ui",
     "confidence": 0,
     "note": "Fallback \u043F\u043E\u0432\u0442\u043E\u0440\u044F\u0435\u0442 \u0441\u0442\u0430\u0440\u0443\u044E \u043B\u043E\u0433\u0438\u043A\u0443 MaxZ=82. \u041D\u0443\u0436\u043D\u0430 \u0440\u0443\u0447\u043D\u0430\u044F/replay \u043A\u0430\u043B\u0438\u0431\u0440\u043E\u0432\u043A\u0430."
   },
@@ -30,7 +30,7 @@
   "texture": {
     "rotationDegrees": 0,
     "flipU": false,
-    "flipV": false
+    "flipV": true
   },
   "surface": {
     "colorTexturePath": "33_neptune_nt/landscape/colorTexture_nt.dx11.dds.dvpl",

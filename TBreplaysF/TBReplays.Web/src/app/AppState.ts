@@ -1,4 +1,5 @@
 import type { MapCalibration } from '../domain/MapCalibration';
+import type { ReplayPlaybackState } from '../domain/ReplayModels';
 import type { ManualTankModel } from '../domain/TankModels';
 import type { AppMode } from './AppMode';
 
@@ -7,7 +8,8 @@ export type ViewerTool =
   | 'draw'
   | 'erase'
   | 'marker'
-  | 'tankPlacement';
+  | 'tankPlacement'
+  | 'tankAim';
 
 export type AppState = {
   mode: AppMode;
@@ -28,13 +30,7 @@ export type AppState = {
 
   calibration: MapCalibration | null;
 
-  playback: {
-    time: number;
-    minTime: number;
-    maxTime: number;
-    isPlaying: boolean;
-    speed: number;
-  };
+    playback: ReplayPlaybackState;
 };
 
 export const createInitialAppState = (): AppState => ({
@@ -57,10 +53,12 @@ export const createInitialAppState = (): AppState => ({
   calibration: null,
 
   playback: {
+    replayId: null,
     time: 0,
     minTime: 0,
     maxTime: 0,
     isPlaying: false,
     speed: 1,
+    revision: 0,
   },
 });

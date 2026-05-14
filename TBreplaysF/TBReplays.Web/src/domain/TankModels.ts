@@ -19,6 +19,12 @@ export type ManualTankPose = {
   turretYawDegrees: number;
 };
 
+export type ManualTankAimTarget = {
+  x: number;
+  y: number;
+  z: number;
+};
+
 export type ManualTankModel = {
   id: string;
   coordinateSpace: TankCoordinateSpace;
@@ -27,4 +33,5 @@ export type ManualTankModel = {
   team: TankTeamKind;
   color: string;
   pose: ManualTankPose;
+  aimTarget?: ManualTankAimTarget | null;
 };
