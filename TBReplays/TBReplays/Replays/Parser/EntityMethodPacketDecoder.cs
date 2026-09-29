@@ -55,7 +55,7 @@ public static class EntityMethodPacketDecoder
         var entityId = BinaryPrimitives.ReadUInt32LittleEndian(packet.Payload.AsSpan(0, 4));
         var methodId = BinaryPrimitives.ReadUInt32LittleEndian(packet.Payload.AsSpan(4, 4));
         var methodPayloadLength = BinaryPrimitives.ReadInt32LittleEndian(packet.Payload.AsSpan(8, 4));
-        if (methodPayloadLength < 0 || 12 + methodPayloadLength > packet.PayloadLength)
+        if (methodPayloadLength < 0 || methodPayloadLength != packet.PayloadLength - 12)
         {
             return null;
         }

@@ -13,15 +13,43 @@ public sealed class Sc2MapObjectExtractor
 
     public MapObjectSetDto Extract(string mapId, byte[] sc2Bytes)
     {
-        var scene = _sceneReader.Read(sc2Bytes);
-        var objects = new List<MapObjectDto>();
+        return ExtractMany(
+            mapId,
+            [sc2Bytes]);
+    }
 
-        if (!scene.TryGetValue("#hierarchy", out var hierarchy))
+    public MapObjectSetDto ExtractMany(
+        string mapId,
+        IReadOnlyCollection<byte[]> sc2Files)
+    {
+        var objects = new List<MapObjectDto>();
+        var nextId = 1;
+
+        foreach (var sc2Bytes in sc2Files)
         {
-            return new MapObjectSetDto(mapId, 0, objects);
+            var scene = _sceneReader.Read(sc2Bytes);
+
+            AppendSceneObjects(
+                scene,
+                objects,
+                ref nextId);
         }
 
-        var nextId = 1;
+        return new MapObjectSetDto(
+            MapId: mapId,
+            Count: objects.Count,
+            Objects: objects);
+    }
+
+    private static void AppendSceneObjects(
+        Dictionary<string, object?> scene,
+        List<MapObjectDto> objects,
+        ref int nextId)
+    {
+        if (!scene.TryGetValue("#hierarchy", out var hierarchy))
+        {
+            return;
+        }
 
         foreach (var entity in EnumerateEntities(hierarchy))
         {
@@ -77,21 +105,16 @@ public sealed class Sc2MapObjectExtractor
                 continue;
             }
 
-            // Слишком огромные proxy почти всегда не отдельные дома/камни,
-            // а крупные батчи сцены, collision/decal/water/terrain-подобные зоны.
             if (maxScaledSize > 140f)
             {
                 continue;
             }
 
-            // Большая широкая плита. Реальные мосты/заборы обычно длинные, но узкие,
-            // поэтому режем именно объекты, большие сразу по двум горизонтальным осям.
             if (maxHorizontalSize > 75f && minHorizontalSize > 28f)
             {
                 continue;
             }
 
-            // Ещё один предохранитель от огромных агрегированных батчей.
             if (horizontalArea > 2200f)
             {
                 continue;
@@ -112,7 +135,9 @@ public sealed class Sc2MapObjectExtractor
                 (boundsMin[2] + boundsMax[2]) * 0.5f
             };
 
-            var objectName = TryGetString(entity, "name") ?? "object";
+            var objectName = TryGetString(entity, "name")
+                             ?? TryGetString(entity, "##name")
+                             ?? "object";
 
             objects.Add(new MapObjectDto(
                 Id: nextId++,
@@ -127,11 +152,6 @@ public sealed class Sc2MapObjectExtractor
                 LocalSize: ToVector3(localSize),
                 RenderBatchCount: batchCount));
         }
-
-        return new MapObjectSetDto(
-            MapId: mapId,
-            Count: objects.Count,
-            Objects: objects);
     }
 
     private static IEnumerable<Dictionary<string, object?>> EnumerateEntities(object? value)

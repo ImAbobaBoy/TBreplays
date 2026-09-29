@@ -16,6 +16,8 @@ public static class ReplayPacketParser
 
     public static IReadOnlyList<ReplayPacket> ParsePackets(byte[] dataReplayBytes, int packetStartOffset)
     {
+        if (packetStartOffset < 0 || packetStartOffset > dataReplayBytes.Length)
+            throw new InvalidDataException("Invalid packet start offset.");
         var packets = new List<ReplayPacket>();
         var offset = packetStartOffset;
         var index = 0;
@@ -43,7 +45,10 @@ public static class ReplayPacketParser
                 throw new InvalidDataException($"Negative payload length at packet offset {packetOffset}.");
             }
 
-            if (offset + payloadLength > dataReplayBytes.Length)
+            if (!float.IsFinite(clockSeconds) || clockSeconds < 0)
+                throw new InvalidDataException($"Invalid packet timestamp at {packetOffset}.");
+
+            if (payloadLength > dataReplayBytes.Length - offset)
             {
                 throw new InvalidDataException(
                     $"Packet payload exceeds data.replay length. packetOffset={packetOffset}, payloadLength={payloadLength}.");

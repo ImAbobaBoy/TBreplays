@@ -20,6 +20,19 @@ public sealed class ScgMapMeshExportService
     private readonly Sc2SceneReader _sc2SceneReader;
     private readonly ScgPolygonGroupReader _polygonGroupReader;
 
+    private sealed class ScgExportSkipReport
+    {
+        public int ScenesWithoutHierarchy { get; set; }
+        public int TotalEntities { get; set; }
+        public int NoTransform { get; set; }
+        public int NoRender { get; set; }
+        public int NoDatasource { get; set; }
+        public int DatasourceNotFound { get; set; }
+        public int Filtered { get; set; }
+        public int AppendedEntities { get; set; }
+        public int AppendedDatasources { get; set; }
+    }
+
     public ScgMapMeshExportService(
         DvplDecoder dvplDecoder,
         Sc2SceneReader sc2SceneReader,
@@ -72,6 +85,7 @@ public sealed class ScgMapMeshExportService
 
         var positions = new List<float>(2_000_000);
         var indices = new List<uint>(2_000_000);
+        var skipReport = new ScgExportSkipReport();
 
         foreach (var sc2Path in sc2Paths)
         {
@@ -80,7 +94,12 @@ public sealed class ScgMapMeshExportService
                 var sc2Bytes = _dvplDecoder.DecodeFile(sc2Path);
                 var scene = _sc2SceneReader.Read(sc2Bytes);
 
-                AppendSceneMeshes(scene, polygonGroups, positions, indices);
+                AppendSceneMeshes(
+                    scene,
+                    polygonGroups,
+                    positions,
+                    indices,
+                    skipReport);
             }
             catch (Exception exception)
             {
@@ -90,6 +109,15 @@ public sealed class ScgMapMeshExportService
 
         Console.WriteLine(
             $"[SCG] Exported object mesh: sc2={sc2Paths.Length}, scg={scgPaths.Length}, polygonGroups={polygonGroups.Count}, vertices={positions.Count / 3}, indices={indices.Count}");
+
+        Console.WriteLine(
+            $"[SCG] Skip report: scenesWithoutHierarchy={skipReport.ScenesWithoutHierarchy}, " +
+            $"totalEntities={skipReport.TotalEntities}, noTransform={skipReport.NoTransform}, " +
+            $"noRender={skipReport.NoRender}, noDatasource={skipReport.NoDatasource}, " +
+            $"datasourceNotFound={skipReport.DatasourceNotFound}, " +
+            $"filtered={skipReport.Filtered}, " +
+            $"appendedEntities={skipReport.AppendedEntities}, " +
+            $"appendedDatasources={skipReport.AppendedDatasources}");
 
         WriteMeshBinary(meshPath, positions, indices);
 
@@ -146,30 +174,43 @@ public sealed class ScgMapMeshExportService
         Dictionary<string, object?> scene,
         IReadOnlyDictionary<ulong, ScgPolygonGroup> polygonGroups,
         List<float> positions,
-        List<uint> indices)
+        List<uint> indices,
+        ScgExportSkipReport skipReport)
     {
         if (!scene.TryGetValue("#hierarchy", out var hierarchy))
         {
+            skipReport.ScenesWithoutHierarchy++;
             return;
         }
 
         foreach (var entity in EnumerateEntities(hierarchy))
         {
+            skipReport.TotalEntities++;
+
             var transform = FindComponent(entity, "TransformComponent");
             var render = FindComponent(entity, "RenderComponent");
 
-            if (transform is null || render is null)
+            if (transform is null)
             {
+                skipReport.NoTransform++;
+                continue;
+            }
+
+            if (render is null)
+            {
+                skipReport.NoRender++;
                 continue;
             }
 
             if (!TryReadVector3(transform, "tc.worldTranslation", out var translation))
             {
+                skipReport.NoTransform++;
                 continue;
             }
 
             if (!TryReadVector4(transform, "tc.worldRotation", out var rotation))
             {
+                skipReport.NoTransform++;
                 continue;
             }
 
@@ -186,6 +227,7 @@ public sealed class ScgMapMeshExportService
 
             if (!PassObjectFilter(entityName, render, scale, translation))
             {
+                skipReport.Filtered++;
                 continue;
             }
 
@@ -193,6 +235,7 @@ public sealed class ScgMapMeshExportService
 
             if (dataSourceIds.Count == 0)
             {
+                skipReport.NoDatasource++;
                 continue;
             }
             
@@ -213,10 +256,13 @@ public sealed class ScgMapMeshExportService
 
             quaternion = Quaternion.Normalize(quaternion);
 
+            var appendedDatasourceCount = 0;
+
             foreach (var dataSourceId in dataSourceIds)
             {
                 if (!polygonGroups.TryGetValue(dataSourceId, out var polygonGroup))
                 {
+                    skipReport.DatasourceNotFound++;
                     continue;
                 }
 
@@ -227,6 +273,14 @@ public sealed class ScgMapMeshExportService
                     quaternion,
                     positions,
                     indices);
+
+                appendedDatasourceCount++;
+                skipReport.AppendedDatasources++;
+            }
+
+            if (appendedDatasourceCount > 0)
+            {
+                skipReport.AppendedEntities++;
             }
         }
     }
@@ -323,7 +377,7 @@ public sealed class ScgMapMeshExportService
             {
                 var lodKey = $"rb{batchIndex}.lodIndex";
 
-                if (TryGetInt32(renderObject, lodKey, out var lodIndex) && lodIndex != 0)
+                if (TryGetInt32(renderObject, lodKey, out var lodIndex) && lodIndex > 0)
                 {
                     continue;
                 }
@@ -424,7 +478,10 @@ public sealed class ScgMapMeshExportService
                || name.Contains("airplane")
                || name.Contains("destroy")
                || name.Contains("destr")
-               || name.Contains("ruin");
+               || name.Contains("ruin")
+               || name.Contains("stn_")
+               || name.Contains("stone")
+               || name.Contains("rock");
     }
 
     private static bool IsReasonableMapPosition(float[] position)

@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using TBReplays.Online;
+using Microsoft.AspNetCore.Mvc;
 using TBReplays.Maps;
 using TBReplays.Maps.Calibration;
 
@@ -15,6 +17,7 @@ public sealed class MapsController : ControllerBase
         _mapImportService = mapImportService;
     }
 
+    [Authorize(Roles = OnlineRoles.Admin)]
     [HttpPost("import")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(1024L * 1024L * 1024L)]
@@ -27,6 +30,7 @@ public sealed class MapsController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Roles = OnlineRoles.Admin)]
     [HttpPost("import-local")]
     public async Task<ActionResult<MapImportResultDto>> ImportLocal(
         [FromQuery] string? archiveFileName,
@@ -133,6 +137,7 @@ public sealed class MapsController : ControllerBase
         return Ok(calibration);
     }
     
+    [Authorize(Roles = OnlineRoles.Admin)]
     [HttpPut("{mapId}/calibration")]
     public async Task<ActionResult<MapCalibrationDto>> SaveCalibration(
         string mapId,

@@ -1,0 +1,59 @@
+{
+  "mapId": "25_canyon_ca-9e248e5d",
+  "mapKey": "25_canyon_ca",
+  "replayMapName": null,
+  "world": {
+    "horizontalHalfExtent": 300
+  },
+  "height": {
+    "scale": 0.001510398,
+    "offset": 0,
+    "source": "manual-debug-ui",
+    "confidence": 0,
+    "note": "Fallback \u043F\u043E\u0432\u0442\u043E\u0440\u044F\u0435\u0442 \u0441\u0442\u0430\u0440\u0443\u044E \u043B\u043E\u0433\u0438\u043A\u0443 MaxZ=82. \u041D\u0443\u0436\u043D\u0430 \u0440\u0443\u0447\u043D\u0430\u044F/replay \u043A\u0430\u043B\u0438\u0431\u0440\u043E\u0432\u043A\u0430."
+  },
+  "terrainTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": true,
+    "rotationDegrees": 0
+  },
+  "replayTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": false,
+    "rotationDegrees": 0
+  },
+  "objects": {
+    "heightOffset": 0
+  },
+  "texture": {
+    "rotationDegrees": 180,
+    "flipU": true,
+    "flipV": false
+  },
+  "surface": {
+    "colorTexturePath": "25_canyon_ca/landscape/canyon_colormap.dx11.dds.dvpl",
+    "tileMaskPath": "25_canyon_ca/landscape/canyon_tilemask.dx11.dds.dvpl",
+    "tileTexture0Path": "25_canyon_ca/landscape/canyon_tiletex.dx11.pvr.dvpl",
+    "landscapeTexturePaths": [
+      "25_canyon_ca/landscape/canyon_colormap.dx11.dds.dvpl",
+      "25_canyon_ca/landscape/canyon_colormap.thumbnail.dx11.dds.dvpl",
+      "25_canyon_ca/landscape/canyon_tilemask.dx11.dds.dvpl",
+      "25_canyon_ca/landscape/canyon_tiletex.dx11.pvr.dvpl",
+      "25_canyon_ca/landscape/kraevaya/images/mount_canyon.dx11.dds.dvpl",
+      "25_canyon_ca/landscape/SkySphere/canyon_sky.dx11.dds.dvpl",
+      "25_canyon_ca/landscape/SkySphere/cubmap_canyon.dx11.dds.dvpl",
+      "25_canyon_ca/landscape/SkySphere/flowmap.dx11.dds.dvpl"
+    ]
+  },
+  "heightmapStats": {
+    "size": 512,
+    "tileSize": 16,
+    "rawMin": 15210,
+    "rawMax": 48501,
+    "rawP01": 17215,
+    "rawP50": 22996,
+    "rawP99": 44540
+  }
+}

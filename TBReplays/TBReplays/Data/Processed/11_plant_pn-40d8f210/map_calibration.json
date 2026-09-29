@@ -1,0 +1,70 @@
+{
+  "mapId": "11_plant_pn-40d8f210",
+  "mapKey": "11_plant_pn",
+  "replayMapName": null,
+  "world": {
+    "horizontalHalfExtent": 300
+  },
+  "height": {
+    "scale": 0.0012512398,
+    "offset": 0,
+    "source": "manual-debug-ui",
+    "confidence": 0,
+    "note": "Fallback \u043F\u043E\u0432\u0442\u043E\u0440\u044F\u0435\u0442 \u0441\u0442\u0430\u0440\u0443\u044E \u043B\u043E\u0433\u0438\u043A\u0443 MaxZ=82. \u041D\u0443\u0436\u043D\u0430 \u0440\u0443\u0447\u043D\u0430\u044F/replay \u043A\u0430\u043B\u0438\u0431\u0440\u043E\u0432\u043A\u0430."
+  },
+  "terrainTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": true,
+    "rotationDegrees": 0
+  },
+  "replayTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": false,
+    "rotationDegrees": 0
+  },
+  "objects": {
+    "heightOffset": 0
+  },
+  "texture": {
+    "rotationDegrees": 180,
+    "flipU": true,
+    "flipV": false
+  },
+  "surface": {
+    "colorTexturePath": "11_plant_pn/landscape/plant_colormap_test.dx11.dds.dvpl",
+    "tileMaskPath": "11_plant_pn/landscape/plant_tilemask.dx11.pvr.dvpl",
+    "tileTexture0Path": "11_plant_pn/landscape/plant_tiletex_temp1.dx11.pvr.dvpl",
+    "landscapeTexturePaths": [
+      "11_plant_pn/landscape/grass/grass_texture.dx11.dds.dvpl",
+      "11_plant_pn/landscape/grass/images/grass120.dx11.dds.dvpl",
+      "11_plant_pn/landscape/grass/images/grass500.dx11.dds.dvpl",
+      "11_plant_pn/landscape/grass/Plant_grassmask.dx11.dds.dvpl",
+      "11_plant_pn/landscape/plant_colormap_test.dx11.dds.dvpl",
+      "11_plant_pn/landscape/Plant_grassmask.dx11.dds.dvpl",
+      "11_plant_pn/landscape/plant_tilemask.dx11.pvr.dvpl",
+      "11_plant_pn/landscape/plant_tiletex_temp1.dx11.pvr.dvpl",
+      "11_plant_pn/landscape/PlantTileHeightTexture.dx11.pvr.dvpl",
+      "11_plant_pn/landscape/plantTileMaskHeightBlend.dx11.pvr.dvpl",
+      "11_plant_pn/landscape/Skysphere/cube.dx11.dds.dvpl",
+      "11_plant_pn/landscape/Skysphere/cubemap_window.dx11.dds.dvpl",
+      "11_plant_pn/landscape/Skysphere/plant_sky_rt_FlattenSphere.dx11.dds.dvpl",
+      "11_plant_pn/landscape/Skysphere/plant_sky_rt_FlowMap.dx11.dds.dvpl",
+      "11_plant_pn/landscape/water/cubemap/Water_cubemap.dx11.dds.dvpl",
+      "11_plant_pn/landscape/water/images/albedo.dx11.dds.dvpl",
+      "11_plant_pn/landscape/water/images/water_bottom.dx11.dds.dvpl",
+      "11_plant_pn/landscape/water/images/water_normal5.dx11.dds.dvpl",
+      "11_plant_pn/landscape/water/images/water_plane.dx11.dds.dvpl"
+    ]
+  },
+  "heightmapStats": {
+    "size": 512,
+    "tileSize": 16,
+    "rawMin": 7137,
+    "rawMax": 57020,
+    "rawP01": 9358,
+    "rawP50": 22077,
+    "rawP99": 46472
+  }
+}

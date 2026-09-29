@@ -1,0 +1,58 @@
+{
+  "mapId": "16_holland_hl-714580c5",
+  "mapKey": "16_holland_hl",
+  "replayMapName": "holland",
+  "world": {
+    "horizontalHalfExtent": 300
+  },
+  "height": {
+    "scale": 0.0012152882,
+    "offset": 0.13197144,
+    "source": "replay-fit-tiled-heightmap",
+    "confidence": 0.9995,
+    "note": "Калибровка по holland-68b8e37a movementFrames. DAVA heightmap декодирован как tile-major: 32x32 тайла по 16x16. Fit rawHeight -> replay.y: points=15328, inliers=15324, RMSE=0.129m, MAE=0.090m, p95=0.219m, corr=0.99954. Формула высоты: worldHeight = rawHeight * 0.0012152882 + 0.13197144."
+  },
+  "terrainTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": true,
+    "rotationDegrees": 0
+  },
+  "replayTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": true,
+    "rotationDegrees": 0
+  },
+  "objects": {
+    "heightOffset": 0
+  },
+  "texture": {
+    "rotationDegrees": 0,
+    "flipU": false,
+    "flipV": true
+  },
+  "surface": {
+    "colorTexturePath": "16_holland_hl/landscape/holland_colormap.dx11.dds.dvpl",
+    "tileMaskPath": "16_holland_hl/landscape/holland_tileMask.dx11.pvr.dvpl",
+    "tileTexture0Path": "16_holland_hl/landscape/holland_tiles_dif.dx11.pvr.dvpl",
+    "landscapeTexturePaths": [
+      "16_holland_hl/landscape/holland_colormap.dx11.dds.dvpl",
+      "16_holland_hl/landscape/holland_tileMask.dx11.pvr.dvpl",
+      "16_holland_hl/landscape/holland_tileMask_heightBlend.dx11.dds.dvpl",
+      "16_holland_hl/landscape/holland_tiles_dif.dx11.pvr.dvpl",
+      "16_holland_hl/landscape/holland_tiles_height.dx11.dds.dvpl",
+      "16_holland_hl/landscape/grass/grass_texture.dx11.dds.dvpl",
+      "16_holland_hl/landscape/grass/holland_grassmask.dx11.dds.dvpl"
+    ]
+  },
+  "heightmapStats": {
+    "size": 512,
+    "tileSize": 16,
+    "rawMin": 10638,
+    "rawMax": 33983,
+    "rawP01": 15932,
+    "rawP50": 24339,
+    "rawP99": 31777
+  }
+}

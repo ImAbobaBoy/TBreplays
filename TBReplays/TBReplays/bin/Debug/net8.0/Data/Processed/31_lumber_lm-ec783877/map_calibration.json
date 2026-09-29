@@ -1,0 +1,81 @@
+{
+  "mapId": "31_lumber_lm-ec783877",
+  "mapKey": "31_lumber_lm",
+  "replayMapName": "lumber",
+  "world": {
+    "horizontalHalfExtent": 300
+  },
+  "height": {
+    "scale": 0.002607272,
+    "offset": 1.5,
+    "source": "manual-debug-ui",
+    "confidence": 0.35,
+    "note": "\u0427\u0435\u0440\u043D\u043E\u0432\u0430\u044F \u043A\u0430\u043B\u0438\u0431\u0440\u043E\u0432\u043A\u0430 \u043F\u043E \u043E\u0431\u044B\u0447\u043D\u043E\u043C\u0443 replay lumber. \u041A\u0430\u0440\u0442\u0430 \u0438 replay \u0441\u043E\u0432\u043F\u0430\u0434\u0430\u044E\u0442: replay mapName=lumber, replay mapId=38. \u0412\u044B\u0441\u043E\u0442\u043D\u044B\u0439 fit \u0441\u043B\u0430\u0431\u044B\u0439: RMSE\u22483.17, MAE\u22482.63, p95\u22486.16, corr\u22480.19. \u0414\u043B\u044F \u0444\u0438\u043D\u0430\u043B\u044C\u043D\u043E\u0439 \u043A\u0430\u043B\u0438\u0431\u0440\u043E\u0432\u043A\u0438 \u043D\u0443\u0436\u0435\u043D debug replay \u0441 \u0435\u0437\u0434\u043E\u0439 \u043F\u043E \u0440\u0435\u043B\u044C\u0435\u0444\u0443."
+  },
+  "terrainTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": true,
+    "rotationDegrees": 0
+  },
+  "replayTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": true,
+    "rotationDegrees": 0
+  },
+  "objects": {
+    "heightOffset": 0
+  },
+  "texture": {
+    "rotationDegrees": 0,
+    "flipU": false,
+    "flipV": true
+  },
+  "surface": {
+    "colorTexturePath": "31_lumber_lm/landscape/lumber_colorTexture.dx11.dds.dvpl",
+    "tileMaskPath": "31_lumber_lm/landscape/lumber_tilemask.dx11.pvr.dvpl",
+    "tileTexture0Path": "31_lumber_lm/landscape/lumber_tileTexture0.dx11.pvr.dvpl",
+    "landscapeTexturePaths": [
+      "31_lumber_lm/landscape/edge_map.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/fake_shadow.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_br_pbrLandscapeNormalMap.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_colorTexture.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_flora_flowers_color_pbr.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_flora_flowers_color.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_flora_grass_color_pbr.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_flora_grass_color.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_flora_grass_edge_map.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_flora_grass_lm_fix2.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_grass_2_fake_shadow.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_pbr_grass_globla_NM.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_pbrAlbedoRoughnessMap.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_pbrLandscapeNormalMap.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_tileAlbedoHeightArray_0.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_tileAlbedoHeightArray_1.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_tileAlbedoHeightArray_2.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_tileAlbedoHeightArray_3.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_tileHeightTexture.dx11.pvr.dvpl",
+      "31_lumber_lm/landscape/lumber_tilemask.dx11.pvr.dvpl",
+      "31_lumber_lm/landscape/lumber_tileMaskHeightBlend.dx11.pvr.dvpl",
+      "31_lumber_lm/landscape/lumber_tileNormalArray_0.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_tileNormalArray_1.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_tileNormalArray_2.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_tileNormalArray_3.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_tileRoughnessAOArray_0.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_tileRoughnessAOArray_1.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_tileRoughnessAOArray_2.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_tileRoughnessAOArray_3.dx11.dds.dvpl",
+      "31_lumber_lm/landscape/lumber_tileTexture0.dx11.pvr.dvpl"
+    ]
+  },
+  "heightmapStats": {
+    "size": 512,
+    "tileSize": 16,
+    "rawMin": 9226,
+    "rawMax": 37707,
+    "rawP01": 9252,
+    "rawP50": 12108,
+    "rawP99": 32898
+  }
+}

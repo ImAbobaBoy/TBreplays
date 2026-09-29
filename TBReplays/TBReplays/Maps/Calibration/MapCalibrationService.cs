@@ -48,7 +48,18 @@ public sealed class MapCalibrationService
                 TerrainSwapXz: true,
                 TerrainFlipX: false,
                 TerrainFlipZ: true,
-                Note: "Пробная калибровка. SwapXz нужно проверить глазами.")
+                Note: "Пробная калибровка. SwapXz нужно проверить глазами."),
+            
+            ["31_lumber_lm"] = new(
+                ReplayMapName: "lumber",
+                HeightScale: 0.000217272f,
+                HeightOffset: 29.746248f,
+                HeightSource: "replay-fit-low-confidence",
+                Confidence: 0.35f,
+                TerrainSwapXz: false,
+                TerrainFlipX: false,
+                TerrainFlipZ: true,
+                Note: "Черновая калибровка по обычному replay lumber. Карта и replay совпадают: replay mapName=lumber, replay mapId=38. Высотный fit слабый: RMSE≈3.17, MAE≈2.63, p95≈6.16, corr≈0.19. Для финальной калибровки нужен debug replay с ездой по рельефу."),
         };
 
     public async Task<MapCalibrationDto> CreateAndSaveAsync(
@@ -287,7 +298,7 @@ public sealed class MapCalibrationService
             .ToArray();
 
         return new MapSurfaceCalibrationDto(
-            ColorTexturePath: FindFirstByTokens(landscapeTextures, ["colormap", "colorTexture", "_cm"]),
+            ColorTexturePath: FindFirstByTokens(landscapeTextures, ["colormap", "_cm", "pbrAlbedoRoughnessMap", "colorTexture"]),
             TileMaskPath: FindFirstByTokens(landscapeTextures, ["tilemask", "tile_mask"]),
             TileTexture0Path: FindFirstByTokens(landscapeTextures, ["tiletexture", "tiletextures", "tiletex"]),
             LandscapeTexturePaths: landscapeTextures);

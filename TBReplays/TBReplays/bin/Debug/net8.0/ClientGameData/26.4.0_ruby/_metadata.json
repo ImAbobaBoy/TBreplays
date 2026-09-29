@@ -1,0 +1,8 @@
+{
+  "clientVersion": "26.4.0_ruby",
+  "source": "Tanks Blitz client files",
+  "contains": [
+    "Data/XML",
+    "Data/Strings/ru.yaml.dvpl"
+  ]
+}

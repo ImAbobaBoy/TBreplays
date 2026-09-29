@@ -1,0 +1,56 @@
+{
+  "mapId": "05_amigosville_am-2cab7955",
+  "mapKey": "05_amigosville_am",
+  "replayMapName": null,
+  "world": {
+    "horizontalHalfExtent": 300
+  },
+  "height": {
+    "scale": 0.0012512398,
+    "offset": 0,
+    "source": "fallback-current-default",
+    "confidence": 0,
+    "note": "Fallback \u043F\u043E\u0432\u0442\u043E\u0440\u044F\u0435\u0442 \u0441\u0442\u0430\u0440\u0443\u044E \u043B\u043E\u0433\u0438\u043A\u0443 MaxZ=82. \u041D\u0443\u0436\u043D\u0430 \u0440\u0443\u0447\u043D\u0430\u044F/replay \u043A\u0430\u043B\u0438\u0431\u0440\u043E\u0432\u043A\u0430."
+  },
+  "terrainTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": true,
+    "rotationDegrees": 0
+  },
+  "replayTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": false,
+    "rotationDegrees": 0
+  },
+  "objects": {
+    "heightOffset": 0
+  },
+  "texture": {
+    "rotationDegrees": 0,
+    "flipU": false,
+    "flipV": false
+  },
+  "surface": {
+    "colorTexturePath": "05_amigosville_am/landscape/amigo_colormap.dx11.dds.dvpl",
+    "tileMaskPath": "05_amigosville_am/landscape/amigo_tilemask2048.dx11.dds.dvpl",
+    "tileTexture0Path": "05_amigosville_am/landscape/tiletex/amigo_tiletex.dx11.pvr.dvpl",
+    "landscapeTexturePaths": [
+      "05_amigosville_am/landscape/amigo_colormap.dx11.dds.dvpl",
+      "05_amigosville_am/landscape/amigo_tilemask2048.dx11.dds.dvpl",
+      "05_amigosville_am/landscape/Skysphere/images/amigo_sky.dx11.dds.dvpl",
+      "05_amigosville_am/landscape/Skysphere/images/flowmap.dx11.dds.dvpl",
+      "05_amigosville_am/landscape/tiletex/amigo_tiletex.dx11.pvr.dvpl"
+    ]
+  },
+  "heightmapStats": {
+    "size": 512,
+    "tileSize": 16,
+    "rawMin": 16252,
+    "rawMax": 51920,
+    "rawP01": 21842,
+    "rawP50": 27996,
+    "rawP99": 44044
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "mapId": "09_savanna_sv-4cebd346",
+  "mapKey": "09_savanna_sv",
+  "replayMapName": null,
+  "world": {
+    "horizontalHalfExtent": 300
+  },
+  "height": {
+    "scale": 0.0012512398,
+    "offset": -1.1,
+    "source": "manual-debug-ui",
+    "confidence": 0,
+    "note": "Fallback \u043F\u043E\u0432\u0442\u043E\u0440\u044F\u0435\u0442 \u0441\u0442\u0430\u0440\u0443\u044E \u043B\u043E\u0433\u0438\u043A\u0443 MaxZ=82. \u041D\u0443\u0436\u043D\u0430 \u0440\u0443\u0447\u043D\u0430\u044F/replay \u043A\u0430\u043B\u0438\u0431\u0440\u043E\u0432\u043A\u0430."
+  },
+  "terrainTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": true,
+    "rotationDegrees": 0
+  },
+  "replayTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": true,
+    "rotationDegrees": 0
+  },
+  "objects": {
+    "heightOffset": 0
+  },
+  "texture": {
+    "rotationDegrees": 0,
+    "flipU": false,
+    "flipV": true
+  },
+  "surface": {
+    "colorTexturePath": "09_savanna_sv/landscape/savanna_colormap_new.dx11.dds.dvpl",
+    "tileMaskPath": "09_savanna_sv/landscape/savanna_tilemask.dx11.pvr.dvpl",
+    "tileTexture0Path": "09_savanna_sv/landscape/savanna_tiletex.dx11.pvr.dvpl",
+    "landscapeTexturePaths": [
+      "09_savanna_sv/landscape/mountain/images/Mountains1.dx11.dds.dvpl",
+      "09_savanna_sv/landscape/savanna_colormap_new.dx11.dds.dvpl",
+      "09_savanna_sv/landscape/savanna_colormap_new.thumbnail.dx11.dds.dvpl",
+      "09_savanna_sv/landscape/savanna_tilemask.dx11.pvr.dvpl",
+      "09_savanna_sv/landscape/savanna_tiletex.dx11.pvr.dvpl",
+      "09_savanna_sv/landscape/SkySphere/flowmap.dx11.dds.dvpl",
+      "09_savanna_sv/landscape/SkySphere/SavannaSky.dx11.dds.dvpl"
+    ]
+  },
+  "heightmapStats": {
+    "size": 512,
+    "tileSize": 16,
+    "rawMin": 23548,
+    "rawMax": 48991,
+    "rawP01": 24910,
+    "rawP50": 31494,
+    "rawP99": 43245
+  }
+}

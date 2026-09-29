@@ -1,0 +1,74 @@
+{
+  "mapId": "03_erlenberg_er-419d3bed",
+  "mapKey": "03_erlenberg_er",
+  "replayMapName": null,
+  "world": {
+    "horizontalHalfExtent": 300
+  },
+  "height": {
+    "scale": 0.0012512398,
+    "offset": 0,
+    "source": "fallback-current-default",
+    "confidence": 0,
+    "note": "Fallback \u043F\u043E\u0432\u0442\u043E\u0440\u044F\u0435\u0442 \u0441\u0442\u0430\u0440\u0443\u044E \u043B\u043E\u0433\u0438\u043A\u0443 MaxZ=82. \u041D\u0443\u0436\u043D\u0430 \u0440\u0443\u0447\u043D\u0430\u044F/replay \u043A\u0430\u043B\u0438\u0431\u0440\u043E\u0432\u043A\u0430."
+  },
+  "terrainTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": true,
+    "rotationDegrees": 0
+  },
+  "replayTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": false,
+    "rotationDegrees": 0
+  },
+  "objects": {
+    "heightOffset": 0
+  },
+  "texture": {
+    "rotationDegrees": 0,
+    "flipU": false,
+    "flipV": false
+  },
+  "surface": {
+    "colorTexturePath": "03_erlenberg_er/landscape/erlenberg_colorTexture.dx11.dds.dvpl",
+    "tileMaskPath": "03_erlenberg_er/landscape/erlenberg_tileMask.dx11.pvr.dvpl",
+    "tileTexture0Path": "03_erlenberg_er/landscape/erlenberg_tileTexture0.dx11.pvr.dvpl",
+    "landscapeTexturePaths": [
+      "03_erlenberg_er/landscape/edge_map.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_colorTexture.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_grass_color_PBR.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_grass_color.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_pbrAlbedoRoughnessMap.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_pbrLandscapeNormalMap.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_tileAlbedoHeightArray_0.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_tileAlbedoHeightArray_1.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_tileAlbedoHeightArray_2.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_tileAlbedoHeightArray_3.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_tileHeightTexture.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_tileMask.dx11.pvr.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_tileMaskHeightBlend.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_tileNormalArray_0.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_tileNormalArray_1.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_tileNormalArray_2.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_tileNormalArray_3.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_tileRoughnessAOArray_0.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_tileRoughnessAOArray_1.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_tileRoughnessAOArray_2.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_tileRoughnessAOArray_3.dx11.dds.dvpl",
+      "03_erlenberg_er/landscape/erlenberg_tileTexture0.dx11.pvr.dvpl",
+      "03_erlenberg_er/landscape/fake_shadow.dx11.dds.dvpl"
+    ]
+  },
+  "heightmapStats": {
+    "size": 512,
+    "tileSize": 16,
+    "rawMin": 3248,
+    "rawMax": 36549,
+    "rawP01": 5798,
+    "rawP50": 10552,
+    "rawP99": 29632
+  }
+}

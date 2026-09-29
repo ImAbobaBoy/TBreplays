@@ -332,36 +332,60 @@ public sealed class MapImportService
 
     private static string? FindTerrainTexturePath(string directory)
     {
-        var preferred = Directory
-            .EnumerateFiles(directory, "colorTexture*.dds.dvpl", SearchOption.AllDirectories)
-            .Where(x => x.Contains($"{Path.DirectorySeparatorChar}landscape{Path.DirectorySeparatorChar}",
-                StringComparison.OrdinalIgnoreCase))
-            .OrderBy(x => x.Length)
-            .FirstOrDefault();
-
-        if (preferred is not null)
-        {
-            return preferred;
-        }
-
-        var pbrAlbedo = Directory
-            .EnumerateFiles(directory, "pbrAlbedoRoughnessMap*.dds.dvpl", SearchOption.AllDirectories)
-            .Where(x => x.Contains($"{Path.DirectorySeparatorChar}landscape{Path.DirectorySeparatorChar}",
-                StringComparison.OrdinalIgnoreCase))
-            .OrderBy(x => x.Length)
-            .FirstOrDefault();
-
-        if (pbrAlbedo is not null)
-        {
-            return pbrAlbedo;
-        }
-
-        return Directory
+        var candidates = Directory
             .EnumerateFiles(directory, "*.dds.dvpl", SearchOption.AllDirectories)
-            .Where(x => x.Contains($"{Path.DirectorySeparatorChar}landscape{Path.DirectorySeparatorChar}",
-                StringComparison.OrdinalIgnoreCase))
-            .OrderBy(x => x.Length)
+            .Where(IsLandscapeDdsTexture)
+            .Where(IsTerrainDiffuseTextureCandidate)
+            .ToArray();
+
+        return FindFirstByName(candidates, "colormap")
+            ?? FindFirstByName(candidates, "_cm")
+            ?? FindFirstByName(candidates, "pbralbedoroughnessmap")
+            ?? FindFirstByName(candidates, "colortexture")
+            ?? candidates
+                .OrderBy(x => Path.GetFileName(x).Length)
+                .ThenBy(x => Path.GetFileName(x), StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+    }
+
+    private static string? FindFirstByName(
+        IEnumerable<string> paths,
+        string token)
+    {
+        return paths
+            .Where(path => Path.GetFileName(path)
+                .Contains(token, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(path => Path.GetFileName(path).Length)
+            .ThenBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
+    }
+
+    private static bool IsLandscapeDdsTexture(string path)
+    {
+        return path.Contains($"{Path.DirectorySeparatorChar}landscape{Path.DirectorySeparatorChar}",
+                StringComparison.OrdinalIgnoreCase)
+            && path.EndsWith(".dds.dvpl", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsTerrainDiffuseTextureCandidate(string path)
+    {
+        var normalizedPath = path.ToLowerInvariant();
+        var fileName = Path.GetFileName(path).ToLowerInvariant();
+
+        return !normalizedPath.Contains($"{Path.DirectorySeparatorChar}skysphere{Path.DirectorySeparatorChar}")
+            && !normalizedPath.Contains($"{Path.DirectorySeparatorChar}mountain{Path.DirectorySeparatorChar}")
+            && !fileName.Contains("thumbnail")
+            && !fileName.Contains("flowmap")
+            && !fileName.Contains("sky")
+            && !fileName.Contains("edge")
+            && !fileName.Contains("shadow")
+            && !fileName.Contains("tile")
+            && !fileName.Contains("mask")
+            && !fileName.Contains("height")
+            && !fileName.Contains("normal")
+            && !fileName.Contains("roughnessao")
+            && !fileName.Contains("flora")
+            && !fileName.Contains("grass");
     }
 
     private static async Task ExtractZipFromStreamAsync(
@@ -527,9 +551,9 @@ public sealed class MapImportService
         string processedDirectory,
         CancellationToken cancellationToken)
     {
-        var sc2Path = FindSc2Path(importedDirectory);
+        var sc2Paths = FindSc2Paths(importedDirectory);
 
-        if (sc2Path is null)
+        if (sc2Paths.Length == 0)
         {
             var emptyObjects = new MapObjectSetDto(
                 MapId: mapId,
@@ -544,8 +568,11 @@ public sealed class MapImportService
             return;
         }
 
-        var sc2Bytes = _dvplDecoder.DecodeFile(sc2Path);
-        var objects = _sc2MapObjectExtractor.Extract(mapId, sc2Bytes);
+        var sc2Files = sc2Paths
+            .Select(_dvplDecoder.DecodeFile)
+            .ToArray();
+
+        var objects = _sc2MapObjectExtractor.ExtractMany(mapId, sc2Files);
 
         var outputPath = Path.Combine(processedDirectory, "objects.json");
         var json = JsonSerializer.Serialize(objects, JsonOptions);
@@ -553,26 +580,14 @@ public sealed class MapImportService
         await File.WriteAllTextAsync(outputPath, json, cancellationToken);
     }
 
-    private static string? FindSc2Path(string directory)
+    private static string[] FindSc2Paths(string directory)
     {
-        var dvplCandidates = Directory
+        return Directory
             .EnumerateFiles(directory, "*.sc2.dvpl", SearchOption.AllDirectories)
+            .Concat(Directory.EnumerateFiles(directory, "*.sc2", SearchOption.AllDirectories))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
             .ToArray();
-
-        if (dvplCandidates.Length > 0)
-        {
-            return dvplCandidates
-                .OrderBy(x => x.Length)
-                .First();
-        }
-
-        var rawCandidates = Directory
-            .EnumerateFiles(directory, "*.sc2", SearchOption.AllDirectories)
-            .ToArray();
-
-        return rawCandidates
-            .OrderBy(x => x.Length)
-            .FirstOrDefault();
     }
     
     public async Task<MapObjectMeshManifestDto> GetObjectMeshManifestAsync(
