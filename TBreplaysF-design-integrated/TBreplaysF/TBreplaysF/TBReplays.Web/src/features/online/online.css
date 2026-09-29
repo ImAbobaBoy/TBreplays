@@ -1,0 +1,25 @@
+.online-login { min-height: 100vh; display: grid; place-items: center; background: #101216; color: #eee; font: 14px system-ui; }
+.online-login form { width: min(380px, calc(100vw - 48px)); padding: 24px; border-radius: 12px; background: #1b1e24; display: grid; gap: 14px; }
+.online-login h1, .online-login h2 { margin: 0; }
+.online-login label, .online-modal label { display: grid; gap: 6px; }
+.online-login input, .online-modal input, .online-modal select { padding: 9px; border: 1px solid #555; background: #101216; color: #fff; border-radius: 5px; min-width: 0; }
+.online-login button, .online-panel button, .online-modal button { border: 1px solid #505963; background: #27332b; color: #eee; padding: 7px 10px; border-radius: 5px; cursor: pointer; }
+.online-login button:disabled, .online-panel button:disabled, .online-modal button:disabled { opacity: .45; cursor: default; }
+.online-panel { padding: 12px; font-size: 12px; overflow-wrap: anywhere; }
+.online-panel p { margin: 6px 0; }
+.online-panel button { margin: 3px; }
+.online-panel ul { list-style: none; padding: 0; }
+.online-panel li { padding: 4px 0; }
+.online-modal { position: fixed; inset: 0; z-index: 5000; background: #000b; display: grid; place-items: center; font: 14px system-ui; color: #eee; }
+.online-modal > div { width: min(700px, calc(100vw - 40px)); max-height: 85vh; overflow: auto; background: #1b1e24; border-radius: 12px; padding: 20px; }
+.online-modal form { display: grid; gap: 10px; margin: 16px 0; }
+.online-modal table { width: 100%; border-collapse: collapse; }
+.online-modal td, .online-modal th { padding: 6px; text-align: left; border-bottom: 1px solid #555; }
+.online-modal .online-close { float: right; }
+.tbr-design .online-map-controls { display: grid; align-content: start; gap: 8px; padding: 12px; }
+.online-map-controls select, .online-map-controls input { width: 100%; min-width: 0; padding: 8px; color: #eee; background: #16191d; border: 1px solid #555; }
+.online-map-controls button { padding: 8px; }
+.tbr-design .online-tools-readonly .tool-slot:not(:first-child) { opacity: .4; pointer-events: none; }
+
+.tbr-design .online-map-controls button { color: #eee; background: #27332b; border: 1px solid #505963; border-radius: 5px; cursor: pointer; }
+.tbr-design .online-map-controls button:disabled { opacity: .45; cursor: default; }

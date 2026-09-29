@@ -1,0 +1,24 @@
+.replay-battle-overlay {
+  position: absolute; z-index: 4; top: 12px; left: 50%; transform: translateX(-50%);
+  width: min(640px, calc(100% - 32px)); color: #f4f4f5; pointer-events: none;
+  font-size: 12px; font-variant-numeric: tabular-nums;
+}
+.replay-battle-scoreboard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 10px 14px; background: #111318e8; border-radius: 9px; }
+.replay-battle-team { display: grid; gap: 5px; min-width: 0; }
+.replay-battle-overlay .ally { --replay-team-color: #22c55e; }
+.replay-battle-overlay .enemy { --replay-team-color: #ef4444; }
+.replay-battle-overlay .neutral { --replay-team-color: #a3a3a3; }
+.replay-battle-team > span { color: var(--replay-team-color); }
+.replay-battle-team strong { font-size: clamp(11px, 1.5vw, 16px); }
+.replay-battle-hp { height: 7px; background: #ffffff20; border-radius: 4px; overflow: hidden; }
+.replay-battle-hp span { display: block; height: 100%; background: var(--replay-team-color); }
+.replay-battle-points { color: var(--replay-team-color); }
+.replay-battle-team small { color: #c4c4cb; }
+.replay-battle-result { background: #111318ed; text-align: center; padding: 6px; border-radius: 6px; margin-top: 4px; }
+.replay-battle-details { margin-top: 4px; pointer-events: auto; background: #111318ed; border-radius: 6px; }
+.replay-battle-details summary { cursor: pointer; padding: 6px 12px; }
+.replay-battle-table-scroll { overflow: auto; max-height: min(320px, 45vh); }
+.replay-battle-details table { width: 100%; border-collapse: collapse; font-size: 11px; text-align: left; }
+.replay-battle-details th, .replay-battle-details td { padding: 6px; border-bottom: 1px solid #ffffff18; vertical-align: top; }
+.replay-battle-details td:first-child { color: var(--replay-team-color); }
+.replay-battle-details small { display: block; color: #bdbdc7; }
