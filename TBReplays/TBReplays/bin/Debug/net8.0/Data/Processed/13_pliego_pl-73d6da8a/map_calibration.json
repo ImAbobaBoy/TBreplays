@@ -1,0 +1,84 @@
+{
+  "mapId": "13_pliego_pl-73d6da8a",
+  "mapKey": "13_pliego_pl",
+  "replayMapName": null,
+  "world": {
+    "horizontalHalfExtent": 300
+  },
+  "height": {
+    "scale": 0.0007512398,
+    "offset": 0,
+    "source": "manual-debug-ui",
+    "confidence": 0,
+    "note": "Fallback \u043F\u043E\u0432\u0442\u043E\u0440\u044F\u0435\u0442 \u0441\u0442\u0430\u0440\u0443\u044E \u043B\u043E\u0433\u0438\u043A\u0443 MaxZ=82. \u041D\u0443\u0436\u043D\u0430 \u0440\u0443\u0447\u043D\u0430\u044F/replay \u043A\u0430\u043B\u0438\u0431\u0440\u043E\u0432\u043A\u0430."
+  },
+  "terrainTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": true,
+    "rotationDegrees": 0
+  },
+  "replayTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": false,
+    "rotationDegrees": 0
+  },
+  "objects": {
+    "heightOffset": 0
+  },
+  "texture": {
+    "rotationDegrees": 180,
+    "flipU": true,
+    "flipV": false
+  },
+  "surface": {
+    "colorTexturePath": "13_pliego_pl/landscape/pliego_colorTexture.dx11.dds.dvpl",
+    "tileMaskPath": "13_pliego_pl/landscape/pliego_tilemask.dx11.pvr.dvpl",
+    "tileTexture0Path": "13_pliego_pl/landscape/pliego_tileTexture0.dx11.pvr.dvpl",
+    "landscapeTexturePaths": [
+      "13_pliego_pl/landscape/Detail_kroevaja_albedo.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/Detail_kroevaja_BC.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/Detail_kroevaja_NM.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/Detail_kroevaja_RAO.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/edge_map.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/fake_shadow.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_colorTexture.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_grass_color_PBR.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_grass_color.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_koevaja_albedo.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_koevaja_BC.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_koevaja_MISC.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_koevaja_NM.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_koevaja_RM.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_pbrAlbedoRoughnessMap.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_pbrLandscapeNormalMap.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_tileAlbedoHeightArray_0.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_tileAlbedoHeightArray_1.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_tileAlbedoHeightArray_2.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_tileAlbedoHeightArray_3.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_tileHeightTexture.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_tilemask.dx11.pvr.dvpl",
+      "13_pliego_pl/landscape/pliego_tileMaskHeightBlend.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_tileNormalArray_0.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_tileNormalArray_1.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_tileNormalArray_2.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_tileNormalArray_3.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_tileRoughnessAOArray_0.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_tileRoughnessAOArray_1.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_tileRoughnessAOArray_2.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_tileRoughnessAOArray_3.dx11.dds.dvpl",
+      "13_pliego_pl/landscape/pliego_tileTexture0.dx11.pvr.dvpl",
+      "13_pliego_pl/landscape/pliego_WaterLightmap.dx11.dds.dvpl"
+    ]
+  },
+  "heightmapStats": {
+    "size": 512,
+    "tileSize": 16,
+    "rawMin": 6173,
+    "rawMax": 65497,
+    "rawP01": 9553,
+    "rawP50": 20582,
+    "rawP99": 53053
+  }
+}

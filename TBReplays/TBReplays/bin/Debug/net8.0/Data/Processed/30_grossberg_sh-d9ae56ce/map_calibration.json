@@ -1,0 +1,55 @@
+{
+  "mapId": "30_grossberg_sh-d9ae56ce",
+  "mapKey": "30_grossberg_sh",
+  "replayMapName": null,
+  "world": {
+    "horizontalHalfExtent": 300
+  },
+  "height": {
+    "scale": 0.0022902398,
+    "offset": 0,
+    "source": "manual-debug-ui",
+    "confidence": 0,
+    "note": "Fallback \u043F\u043E\u0432\u0442\u043E\u0440\u044F\u0435\u0442 \u0441\u0442\u0430\u0440\u0443\u044E \u043B\u043E\u0433\u0438\u043A\u0443 MaxZ=82. \u041D\u0443\u0436\u043D\u0430 \u0440\u0443\u0447\u043D\u0430\u044F/replay \u043A\u0430\u043B\u0438\u0431\u0440\u043E\u0432\u043A\u0430."
+  },
+  "terrainTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": true,
+    "rotationDegrees": 0
+  },
+  "replayTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": false,
+    "rotationDegrees": 0
+  },
+  "objects": {
+    "heightOffset": 0
+  },
+  "texture": {
+    "rotationDegrees": 180,
+    "flipU": true,
+    "flipV": false
+  },
+  "surface": {
+    "colorTexturePath": "30_grossberg_sh/landscape/grossberg_colormap.dx11.dds.dvpl",
+    "tileMaskPath": "30_grossberg_sh/landscape/grossberg_tilemask.dx11.pvr.dvpl",
+    "tileTexture0Path": "30_grossberg_sh/landscape/grossberg_tiletex.dx11.pvr.dvpl",
+    "landscapeTexturePaths": [
+      "30_grossberg_sh/landscape/grossberg_colormap.dx11.dds.dvpl",
+      "30_grossberg_sh/landscape/grossberg_tilemask.dx11.pvr.dvpl",
+      "30_grossberg_sh/landscape/grossberg_tiletex.dx11.pvr.dvpl",
+      "30_grossberg_sh/landscape/SkySphere/images/Grosberg_sky05.dx11.dds.dvpl"
+    ]
+  },
+  "heightmapStats": {
+    "size": 512,
+    "tileSize": 16,
+    "rawMin": 174,
+    "rawMax": 24763,
+    "rawP01": 3076,
+    "rawP50": 10050,
+    "rawP99": 21215
+  }
+}

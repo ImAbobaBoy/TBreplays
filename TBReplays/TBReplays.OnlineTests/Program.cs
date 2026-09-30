@@ -35,6 +35,7 @@ try
     await Expect(viewer.PostAsJsonAsync("/api/maps/import-local", new { }), 403);
     await Expect(viewer.PostAsJsonAsync("/api/sketch/commands", Command("clear", 0, 0)), 403);
     await Expect(admin.PutAsJsonAsync($"/api/users/{adminUser["id"]!.GetValue<string>()}/role", new { role = "observer" }), 409);
+    await Expect(admin.PutAsJsonAsync($"/api/users/{userId}/role", new { role = "admin" }), 400);
     await Expect(admin.PutAsJsonAsync($"/api/users/{userId}/role", new { role = "editor" }), 200);
     await Expect(viewer.GetAsync("/api/auth/me"), 401);
     await Csrf(viewer);
@@ -102,6 +103,41 @@ try
     await Expect(admin.PostAsJsonAsync("/api/sketch/commands", Command("upsert", 0, 2, stroke with { Id = "removable" })), 409);
     var removed = await Json(admin.GetAsync("/api/sketch"));
     Check(removed["strokes"]!.AsArray().Count == 0 && removed["revision"]!.GetValue<long>() == 6, "retry cannot resurrect deleted stroke");
+    await Csrf(viewer);
+    var tank = new SketchTank("tank-1", "viewer-world-v1", "ИС-7", "heavy", "ally", "#22c55e", new(1, 0, 2, 0, 0));
+    var createTank = TankCommand("upsertTank", 0, 2, tank);
+    await Expect(viewer.PostAsJsonAsync("/api/sketch/commands", createTank), 403);
+    var addedTank = await Json(admin.PostAsJsonAsync("/api/sketch/commands", createTank));
+    Check(addedTank["change"]!["tank"]!["id"]!.GetValue<string>() == "tank-1", "tank is included in broadcast change");
+    await Event(socketA, "SketchChanged", 7);
+    await Expect(admin.PostAsJsonAsync("/api/sketch/commands", createTank), 200);
+    await Expect(admin.PostAsJsonAsync("/api/sketch/commands", createTank with { Tank = tank with { Label = "other" } }), 409);
+    await Expect(admin.PostAsJsonAsync("/api/sketch/commands", TankCommand("upsertTank", 7, 2, tank with { Color = "bad" })), 400);
+    await Expect(admin.PostAsJsonAsync("/api/sketch/commands", TankCommand("upsertTank", 7, 2, tank with { CoordinateSpace = "unknown" })), 400);
+    await Expect(admin.PostAsJsonAsync("/api/sketch/commands", TankCommand("upsertTank", 7, 2, tank with { Label = new string('x', 81) })), 400);
+    await Expect(admin.PostAsJsonAsync("/api/sketch/commands", TankCommand("upsertTank", 7, 2, tank with { AimTarget = new(999999, 0, 0) })), 400);
+    var aimed = tank with { AimTarget = new(100, 0, 200), Pose = tank.Pose with { TurretYawDegrees = 30 } };
+    await Expect(admin.PostAsJsonAsync("/api/sketch/commands", TankCommand("upsertTank", 7, 2, aimed)), 200);
+    var moveA = admin.PostAsJsonAsync("/api/sketch/commands", TankCommand("upsertTank", 8, 2, aimed with { Pose = aimed.Pose with { X = 5 } }));
+    var moveB = admin.PostAsJsonAsync("/api/sketch/commands", TankCommand("upsertTank", 8, 2, aimed with { Pose = aimed.Pose with { X = 10 } }));
+    var moves = await Task.WhenAll(moveA, moveB);
+    Check(moves.Count(x => x.StatusCode == HttpStatusCode.OK) == 1 && moves.Count(x => x.StatusCode == HttpStatusCode.Conflict) == 1, "concurrent tank move conflict");
+    foreach (var response in moves) response.Dispose();
+    var tankBoard = await Json(admin.GetAsync("/api/sketch"));
+    Check(tankBoard["tanks"]![0]!["tank"]!["aimTarget"]!["x"]!.GetValue<double>() == 100, "movement retains aim target");
+    await Expect(admin.PostAsJsonAsync("/api/sketch/commands", TankCommand("removeTank", 9, 2, tankId: tank.Id)), 200);
+    await Expect(admin.PostAsJsonAsync("/api/sketch/commands", createTank), 200);
+    await Expect(admin.PostAsJsonAsync("/api/sketch/commands", TankCommand("upsertTank", 0, 2, tank)), 409);
+    await Expect(admin.PostAsJsonAsync("/api/sketch/commands", TankCommand("upsertTank", 0, 2, tank with { Id = "tank-2" })), 200);
+    await Expect(admin.PostAsJsonAsync("/api/sketch/commands", Command("upsert", 0, 2, stroke with { Id = "keep-line" })), 200);
+    await Expect(admin.PostAsJsonAsync("/api/sketch/commands", TankCommand("clearTanks", 12, 2)), 200);
+    var clearedTanks = await Json(admin.GetAsync("/api/sketch"));
+    Check(clearedTanks["tanks"]!.AsArray().Count == 0 && clearedTanks["strokes"]!.AsArray().Count == 1, "clear tanks preserves lines");
+    await Expect(admin.PostAsJsonAsync("/api/sketch/commands", TankCommand("upsertTank", 11, 2, tank with { Id = "tank-2" })), 409);
+    await Expect(admin.PostAsJsonAsync("/api/sketch/commands", TankCommand("upsertTank", 0, 3, aimed)), 200);
+    await Expect(admin.PostAsJsonAsync("/api/sketch/commands", Command("clear", 14, 3)), 200);
+    var clearedLines = await Json(admin.GetAsync("/api/sketch"));
+    Check(clearedLines["tanks"]!.AsArray().Count == 1 && clearedLines["strokes"]!.AsArray().Count == 0, "clear lines preserves tanks");
     await Expect(admin.PostAsJsonAsync("/api/auth/change-password", new { currentPassword = "admin", newPassword = "admin-new-password" }), 204);
     await Closed(socketA);
     var usersJson = await File.ReadAllTextAsync(Path.Combine(directory, "users.json"));
@@ -114,7 +150,12 @@ try
     await Expect(restarted.PostAsJsonAsync("/api/auth/login", new { login = "admin", password = "admin" }), 401);
     await Expect(restarted.PostAsJsonAsync("/api/auth/login", new { login = "admin", password = "admin-new-password" }), 200);
     var saved = await Json(restarted.GetAsync("/api/sketch"));
-    Check(saved["revision"]!.GetValue<long>() == 6 && saved["mapId"]!.GetValue<string>() == "test-map", "board survives restart");
+    Check(saved["revision"]!.GetValue<long>() == 15 && saved["mapId"]!.GetValue<string>() == "test-map", "board survives restart");
+    Check(saved["tanks"]![0]!["tank"]!["aimTarget"]!["z"]!.GetValue<double>() == 200, "tank and aim survive restart");
+    await Csrf(restarted);
+    await Expect(restarted.PostAsJsonAsync("/api/sketch/commands", Command("setMap", 15, 4, mapId: "next-map")), 200);
+    var newMap = await Json(restarted.GetAsync("/api/sketch"));
+    Check(newMap["tanks"]!.AsArray().Count == 0, "map switch clears tanks");
     Console.WriteLine($"PASS: {checks} online integration checks (HTTP, two WebSockets, roles, reset, concurrency, persistence).");
 }
 finally
@@ -213,3 +254,6 @@ async Task Closed(ClientWebSocket socket)
     catch (WebSocketException) { }
     checks++;
 }
+
+SketchCommand TankCommand(string kind, long revision, long epoch, SketchTank? tank = null, string? tankId = null)
+    => new(Guid.NewGuid().ToString(), kind, revision, epoch, Tank: tank, TankId: tankId);

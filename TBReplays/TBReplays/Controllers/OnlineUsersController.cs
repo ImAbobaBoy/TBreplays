@@ -15,13 +15,14 @@ public sealed class OnlineUsersController(UserManager<OnlineUser> users, OnlineU
     [HttpPut("{id}/role")]
     public async Task<IActionResult> SetRole(string id, RoleRequest request)
     {
-        if (!OnlineRoles.IsValid(request.Role)) return BadRequest(new { error = "Допустимые роли: admin, editor, observer." });
+        if (request.Role is not (OnlineRoles.Editor or OnlineRoles.Observer)) return BadRequest(new { error = "Можно назначить только editor или observer." });
         await files.AccountGate.WaitAsync(HttpContext.RequestAborted);
         try
         {
             if ((await security.GetCurrentAsync(User))?.Role != OnlineRoles.Admin) return Forbid();
             var user = await users.FindByIdAsync(id);
             if (user is null) return NotFound();
+            if (user.Role == OnlineRoles.Admin) return Conflict(new { error = "Роль администратора менять нельзя." });
             if (user.Role == request.Role) return Ok(UserDto.From(user));
             user.Role = request.Role;
             // Role and stamp are persisted atomically by the store.

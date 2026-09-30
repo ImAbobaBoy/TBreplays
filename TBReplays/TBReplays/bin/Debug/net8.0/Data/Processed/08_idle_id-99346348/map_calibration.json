@@ -1,0 +1,63 @@
+{
+  "mapId": "08_idle_id-99346348",
+  "mapKey": "08_idle_id",
+  "replayMapName": null,
+  "world": {
+    "horizontalHalfExtent": 300
+  },
+  "height": {
+    "scale": 0.0012512398,
+    "offset": 0,
+    "source": "fallback-current-default",
+    "confidence": 0,
+    "note": "Fallback \u043F\u043E\u0432\u0442\u043E\u0440\u044F\u0435\u0442 \u0441\u0442\u0430\u0440\u0443\u044E \u043B\u043E\u0433\u0438\u043A\u0443 MaxZ=82. \u041D\u0443\u0436\u043D\u0430 \u0440\u0443\u0447\u043D\u0430\u044F/replay \u043A\u0430\u043B\u0438\u0431\u0440\u043E\u0432\u043A\u0430."
+  },
+  "terrainTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": true,
+    "rotationDegrees": 0
+  },
+  "replayTransform": {
+    "swapXz": false,
+    "flipX": false,
+    "flipZ": false,
+    "rotationDegrees": 0
+  },
+  "objects": {
+    "heightOffset": 0
+  },
+  "texture": {
+    "rotationDegrees": 0,
+    "flipU": false,
+    "flipV": false
+  },
+  "surface": {
+    "colorTexturePath": "08_idle_id/landscape/idleColorTexture.dx11.pvr.dvpl",
+    "tileMaskPath": "08_idle_id/landscape/idleTileMask.dx11.pvr.dvpl",
+    "tileTexture0Path": "08_idle_id/landscape/idleTileTexture0.dx11.pvr.dvpl",
+    "landscapeTexturePaths": [
+      "08_idle_id/landscape/grass/flowers.dx11.dds.dvpl",
+      "08_idle_id/landscape/grass/IdleGrassmask.dx11.dds.dvpl",
+      "08_idle_id/landscape/grass/images/karelia_grass01.dx11.dds.dvpl",
+      "08_idle_id/landscape/grass/karelia_grass01.dx11.dds.dvpl",
+      "08_idle_id/landscape/idleColorTexture.dx11.pvr.dvpl",
+      "08_idle_id/landscape/idleTileHeightTexture.dx11.pvr.dvpl",
+      "08_idle_id/landscape/idleTileMask.dx11.pvr.dvpl",
+      "08_idle_id/landscape/idleTileMaskHeightBlend.dx11.pvr.dvpl",
+      "08_idle_id/landscape/idleTileTexture0.dx11.pvr.dvpl",
+      "08_idle_id/landscape/SkySphere/canyon_sky.dx11.dds.dvpl",
+      "08_idle_id/landscape/SkySphere/flowmap.dx11.dds.dvpl",
+      "08_idle_id/landscape/SkySphere/Rift_rt_sky_cubemap.dx11.dds.dvpl"
+    ]
+  },
+  "heightmapStats": {
+    "size": 512,
+    "tileSize": 16,
+    "rawMin": 14481,
+    "rawMax": 44683,
+    "rawP01": 16568,
+    "rawP50": 20903,
+    "rawP99": 37486
+  }
+}
