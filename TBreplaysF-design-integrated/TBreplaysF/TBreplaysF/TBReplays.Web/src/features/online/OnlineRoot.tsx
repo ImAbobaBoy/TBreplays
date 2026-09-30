@@ -1,3 +1,4 @@
+import { OnlineRoster } from './OnlineRoster';
 import { createContext, useContext, useEffect, useState, useSyncExternalStore } from 'react';
 import type { ReactNode, FormEvent } from 'react';
 import { HttpError, onlineRequest, resetCsrf, sessionEvents } from '../../api/OnlineHttp';
@@ -90,7 +91,8 @@ export function OnlinePanel() {
     <button disabled={busy} onClick={() => void logout()}>Выйти</button>
     <p>Линий: {state.board?.strokes.length ?? 0}</p>
     <p>Сейчас в скетче: {state.users.length}</p>
-    <ul>{state.users.map(item => <li key={item.id}>{item.login}{item.id === user.id ? ' (вы)' : ''} — {roleNames[item.role]}</li>)}</ul>
+    <p>Танков: {state.board?.tanks?.length ?? 0}</p>
+    <OnlineRoster />
     {settings && <AccountDialog onClose={() => setSettings(false)} />}
   </section>;
 }
@@ -119,9 +121,9 @@ function AccountDialog({ onClose }: { onClose: () => void }) {
     <p role="status">{message}</p>
     {user.role === 'admin' && <><h2>Пользователи</h2><button disabled={busy} onClick={() => void load()}>Обновить список</button>
       <table><thead><tr><th>Логин</th><th>Роль</th><th>Пароль</th></tr></thead><tbody>{users.map(item => <tr key={item.id}>
-        <td>{item.login}</td><td><select aria-label={`Роль ${item.login}`} value={item.role} disabled={busy} onChange={e => { const role = e.target.value; void action(async () => { await onlineRequest(`/api/users/${item.id}/role`, 'PUT', { role }); if (item.id === user.id) signOut(); else await load(); }); }}>
-          <option value="observer">Наблюдатель</option><option value="editor">Редактор</option><option value="admin">Администратор</option>
-        </select></td><td><button disabled={busy} onClick={() => { setTarget(item); setResetPassword(''); }}>Сбросить пароль</button></td>
+        <td>{item.login}</td><td>{item.role === 'admin' ? <span>Администратор</span> : <select aria-label={`Роль ${item.login}`} value={item.role} disabled={busy} onChange={e => { const role = e.target.value; void action(async () => { await onlineRequest(`/api/users/${item.id}/role`, 'PUT', { role }); if (item.id === user.id) signOut(); else await load(); }); }}>
+          <option value="observer">Наблюдатель</option><option value="editor">Редактор</option>
+        </select>}</td><td><button disabled={busy} onClick={() => { setTarget(item); setResetPassword(''); }}>Сбросить пароль</button></td>
       </tr>)}</tbody></table>
       {target && <form onSubmit={e => { e.preventDefault(); void action(async () => { await onlineRequest(`/api/users/${target.id}/reset-password`, 'POST', { password: resetPassword }); setResetPassword(''); setMessage(`Пароль ${target.login} изменён. Старые сеансы завершены.`); if (target.id === user.id) signOut(); setTarget(null); }); }}>
         <label>Новый пароль для {target.login}<input type="password" required minLength={8} maxLength={128} autoComplete="new-password" value={resetPassword} onChange={e => setResetPassword(e.target.value)} /></label><button disabled={busy}>Установить пароль</button>

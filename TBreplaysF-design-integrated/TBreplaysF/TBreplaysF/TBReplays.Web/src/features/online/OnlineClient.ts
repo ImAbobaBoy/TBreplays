@@ -64,10 +64,10 @@ export class OnlineClient {
       }, 30000);
     } catch (error) { this.publish({ status: 'offline', message: error instanceof Error ? error.message : 'Нет связи с сервером.' }); }
   }
-  async apply(command: Omit<SketchCommand, 'operationId' | 'mapRevision'>) {
+  async apply(command: Omit<SketchCommand, 'operationId' | 'mapRevision'> & { mapRevision?: number }) {
     const board = this.state.board;
     if (!board || this.state.status !== 'connected' || this.state.pending) throw new Error('Дождитесь подключения и сохранения предыдущего рисунка.');
-    const request: SketchCommand = { ...command, operationId: createId(), mapRevision: board.mapRevision };
+    const request: SketchCommand = { ...command, operationId: createId(), mapRevision: command.mapRevision ?? board.mapRevision };
     this.publish({ pending: true, message: '' });
     try {
       // HTTP and SignalR use the same server command service. HTTP has CSRF and a clear error status.

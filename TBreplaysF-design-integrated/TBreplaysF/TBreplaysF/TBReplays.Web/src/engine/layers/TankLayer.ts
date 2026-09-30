@@ -18,6 +18,12 @@ import {
   type TankVisual,
 } from '../tanks/TankMeshFactory';
 
+export type TankOnlineHandlers = {
+  begin: (id: string) => void;
+  commit: (tank: ManualTankModel) => void;
+  remove: (id: string) => void;
+};
+
 export type TankLayerHandlers = {
   onTankCreated?: (tank: ManualTankModel) => void;
   onTankChanged?: (tank: ManualTankModel) => void;
@@ -50,6 +56,13 @@ export class TankLayer {
   private handlers: TankLayerHandlers = {};
   private tool: ViewerTool = 'select';
   private enabled = true;
+  private editable = true;
+  private onlineHandlers: TankOnlineHandlers | null = null;
+  public setOnlineHandlers(handlers: TankOnlineHandlers | null): void { this.onlineHandlers = handlers; }
+  public setEditable(editable: boolean): void {
+    this.editable = editable;
+    if (!editable) this.finishDrag();
+  }
   private selectedTankId: string | null = null;
   private draggedTankId: string | null = null;
   private draggedAimTargetTankId: string | null = null;
@@ -137,6 +150,7 @@ export class TankLayer {
         continue;
       }
 
+      if (this.draggedTankId === id || this.draggedAimTargetTankId === id) this.finishDrag();
       this.disposeTankEntry(entry);
       this.tanks.delete(id);
     }
@@ -145,6 +159,7 @@ export class TankLayer {
       const existing = this.tanks.get(tank.id);
 
       if (existing) {
+        if (this.draggedTankId === tank.id || this.draggedAimTargetTankId === tank.id) continue;
         const shouldRecreateVisual =
           existing.model.color !== tank.color ||
           existing.model.visualKey !== tank.visualKey ||
@@ -237,6 +252,13 @@ export class TankLayer {
       return;
     }
 
+    if (this.tool === 'erase') {
+      if (!this.editable) return;
+      const id = this.pickTankId(event);
+      if (id) { this.stopViewerEvent(event); this.onlineHandlers?.remove(id); }
+      return;
+    }
+    if (!this.editable && this.tool !== 'select') return;
     if (this.tool === 'tankPlacement') {
       this.stopViewerEvent(event);
       this.placeTank(event);
@@ -255,13 +277,14 @@ export class TankLayer {
 
     const aimTargetTankId = this.pickAimTargetTankId(event);
 
-    if (aimTargetTankId) {
+    if (aimTargetTankId && this.editable) {
       this.stopViewerEvent(event);
 
       this.selectedTankId = aimTargetTankId;
       this.handlers.onTankSelected?.(aimTargetTankId);
       this.updateSelectionState();
 
+      this.onlineHandlers?.begin(aimTargetTankId);
       this.draggedAimTargetTankId = aimTargetTankId;
       this.controls.enabled = false;
 
@@ -280,6 +303,8 @@ export class TankLayer {
     this.handlers.onTankSelected?.(tankId);
     this.updateSelectionState();
 
+    if (!this.editable) return;
+    this.onlineHandlers?.begin(tankId);
     this.draggedTankId = tankId;
     this.controls.enabled = false;
   };
@@ -309,7 +334,7 @@ export class TankLayer {
     }
 
     this.stopViewerEvent(event);
-    this.finishDrag();
+    this.finishDrag(true);
   };
 
   private placeTank(event: PointerEvent): void {
@@ -321,7 +346,8 @@ export class TankLayer {
 
     const tank = this.createTankModelAtPoint(point);
 
-    this.handlers.onTankCreated?.(tank);
+    if (this.onlineHandlers) this.onlineHandlers.commit(tank);
+    else this.handlers.onTankCreated?.(tank);
     this.handlers.onTankSelected?.(null);
 
     this.selectedTankId = null;
@@ -354,9 +380,12 @@ export class TankLayer {
       },
     };
 
-    entry.model = nextTank;
-    applyTankModelToVisual(nextTank, entry.visual);
-    this.handlers.onTankChanged?.(nextTank);
+    const aimedTank = nextTank.aimTarget
+      ? this.createTankWithAimTarget(nextTank, new THREE.Vector3(nextTank.aimTarget.x, nextTank.aimTarget.y, nextTank.aimTarget.z)) : nextTank;
+    entry.model = aimedTank;
+    applyTankModelToVisual(aimedTank, entry.visual);
+    this.updateAimVisual(entry);
+    this.handlers.onTankChanged?.(aimedTank);
   }
 
     private startAimTargetEdit(event: PointerEvent): void {
@@ -375,11 +404,13 @@ export class TankLayer {
     const aimTargetTankId = this.pickAimTargetTankId(event);
 
     if (aimTargetTankId === this.selectedTankId) {
+      this.onlineHandlers?.begin(aimTargetTankId);
       this.draggedAimTargetTankId = aimTargetTankId;
       this.controls.enabled = false;
       return;
     }
 
+    this.onlineHandlers?.begin(this.selectedTankId);
     this.setAimTargetFromTerrain(event, this.selectedTankId);
     this.draggedAimTargetTankId = this.selectedTankId;
     this.controls.enabled = false;
@@ -445,10 +476,13 @@ export class TankLayer {
     };
   }
 
-  private finishDrag(): void {
+  private finishDrag(commit = false): void {
+    const id = this.draggedTankId ?? this.draggedAimTargetTankId;
+    const tank = id ? this.tanks.get(id)?.model : undefined;
     this.draggedTankId = null;
     this.draggedAimTargetTankId = null;
     this.controls.enabled = true;
+    if (commit && tank) this.onlineHandlers?.commit(tank);
   }
 
   private createTankModelAtPoint(point: THREE.Vector3): ManualTankModel {

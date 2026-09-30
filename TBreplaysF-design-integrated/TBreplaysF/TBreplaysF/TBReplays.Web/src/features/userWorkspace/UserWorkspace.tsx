@@ -213,7 +213,12 @@ export function UserWorkspace({
 
   const updateSelectedTankPose = (patch: Partial<ManualTankModel['pose']>) => {
     if (selectedTank) {
-      onManualTankChange({ ...selectedTank, pose: { ...selectedTank.pose, ...patch } });
+      const pose = { ...selectedTank.pose, ...patch };
+      if (selectedTank.aimTarget) {
+        const yaw = Math.atan2(selectedTank.aimTarget.x - pose.x, selectedTank.aimTarget.z - pose.z) * 180 / Math.PI - pose.bodyYawDegrees;
+        pose.turretYawDegrees = ((yaw + 180) % 360 + 360) % 360 - 180;
+      }
+      onManualTankChange({ ...selectedTank, pose });
     }
   };
 
@@ -400,6 +405,7 @@ export function UserWorkspace({
                     onDrawingWidthChange={onDrawingWidthChange}
                     onDrawingLineStyleChange={onDrawingLineStyleChange}
                     onDrawingArrowModeChange={onDrawingArrowModeChange}
+                    onSelectedToolChange={onSelectedToolChange}
                     onClearManualTanks={onClearManualTanks}
                     onDeleteSelectedManualTank={onDeleteSelectedManualTank}
                     onUpdateSelectedTank={updateSelectedTank}
@@ -556,6 +562,7 @@ function ToolSettings({
   onDeleteSelectedManualTank,
   onUpdateSelectedTank,
   onUpdateSelectedTankPose,
+  onSelectedToolChange,
 }: {
   state: AppState;
   selectedTank: ManualTankModel | null;
@@ -569,8 +576,10 @@ function ToolSettings({
   onClearManualTanks: () => void;
   onDeleteSelectedManualTank: () => void;
   onUpdateSelectedTank: (patch: Partial<ManualTankModel>) => void;
+  onSelectedToolChange: (tool: ViewerTool) => void;
   onUpdateSelectedTankPose: (patch: Partial<ManualTankModel['pose']>) => void;
 }) {
+  const { canEdit } = useOnline();
   if ((state.selectedTool === 'drawLine' || state.selectedTool === 'draw')) {
     const progress = (Math.max(1, Math.min(10, state.drawingWidth)) - 1) / 9 * 100;
 
@@ -613,10 +622,10 @@ function ToolSettings({
     );
   }
 
-  if (state.selectedTool === 'tankPlacement' || state.selectedTool === 'tankAim') {
+  if (state.selectedTool === 'tankPlacement' || (state.selectedTool === 'tankAim' && !selectedTank)) {
     return (
-      <div className="marker-settings">
-        <input className="marker-label-input" type="text" value={markerLabel} aria-label="Подпись танковой метки" onChange={(event) => onMarkerLabelChange(event.target.value)} />
+      <fieldset disabled={!canEdit} className="marker-settings tank-settings-fieldset">
+        <input className="marker-label-input" type="text" maxLength={80} value={markerLabel} aria-label="Подпись танковой метки" onChange={(event) => onMarkerLabelChange(event.target.value)} />
         <div className="marker-type-grid" role="group" aria-label="Тип танковой метки">
           {tankTypeOptions.map((option) => (
             <button
@@ -629,19 +638,26 @@ function ToolSettings({
             ><TankMarkerIcon type={option.value} /></button>
           ))}
         </div>
+        <button className="clear-marker-icons-button" type="button" onClick={() => onSelectedToolChange('tankAim')}>Указать зацел</button>
+        <p className="tiny-meta">Для зацела выберите танк, затем точку на карте.</p>
         <button className="clear-marker-icons-button" type="button" onClick={onClearManualTanks}>Очистить все иконки</button>
-      </div>
+      </fieldset>
     );
   }
 
-  if (state.selectedTool === 'select' && selectedTank) {
+  if ((state.selectedTool === 'select' || state.selectedTool === 'tankAim') && selectedTank) {
     return (
-      <div className="marker-settings selected-tank-settings">
-        <input className="marker-label-input" value={selectedTank.label} aria-label="Название танка" onChange={(event) => onUpdateSelectedTank({ label: event.target.value })} />
+      <fieldset disabled={!canEdit} className="marker-settings selected-tank-settings tank-settings-fieldset">
+        <input key={selectedTank.id + selectedTank.label} className="marker-label-input" defaultValue={selectedTank.label} maxLength={80} aria-label="Название танка" onBlur={event => { if (event.target.value !== selectedTank.label) onUpdateSelectedTank({ label: event.target.value }); }} />
         <AngleControl label="Корпус" value={selectedTank.pose.bodyYawDegrees} onChange={(value) => onUpdateSelectedTankPose({ bodyYawDegrees: value })} />
-        <AngleControl label="Башня" value={selectedTank.pose.turretYawDegrees} onChange={(value) => onUpdateSelectedTankPose({ turretYawDegrees: value })} />
+        <AngleControl label="Башня" value={selectedTank.pose.turretYawDegrees} onChange={(value) => onUpdateSelectedTank({ pose: { ...selectedTank.pose, turretYawDegrees: value }, aimTarget: null })} />
+        <button className="clear-marker-icons-button" type="button" aria-pressed={state.selectedTool === 'tankAim'} onClick={() => onSelectedToolChange(state.selectedTool === 'tankAim' ? 'select' : 'tankAim')}>
+          {state.selectedTool === 'tankAim' ? 'Завершить зацел' : 'Указать зацел'}
+        </button>
+        {selectedTank.aimTarget && <button className="clear-marker-icons-button" type="button" onClick={() => onUpdateSelectedTank({ aimTarget: null })}>Убрать зацел</button>}
+        <p className="tiny-meta">Клик по карте задаёт точку зацела. Точку можно перетаскивать.</p>
         <button className="clear-marker-icons-button danger" type="button" onClick={onDeleteSelectedManualTank}>Удалить выбранный танк</button>
-      </div>
+      </fieldset>
     );
   }
 
@@ -660,12 +676,14 @@ function StrokeOption({ active, kind, onClick }: { active: boolean; kind: 'solid
 }
 
 function AngleControl({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return (
-    <label className="angle-control">
-      <span>{label}<b>{value.toFixed(0)}°</b></span>
-      <input type="range" min={-180} max={180} value={value} onChange={(event) => onChange(event.target.valueAsNumber)} />
-    </label>
-  );
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const commit = () => { if (draft !== value) onChange(draft); };
+  return <label className="angle-control">
+    <span>{label}<b>{draft.toFixed(0)}°</b></span>
+    <input aria-label={label} type="range" min={-180} max={180} value={draft}
+      onChange={event => setDraft(event.target.valueAsNumber)} onPointerUp={commit} onKeyUp={commit} onBlur={commit} />
+  </label>;
 }
 
 function interpolateColor(position: number): string {

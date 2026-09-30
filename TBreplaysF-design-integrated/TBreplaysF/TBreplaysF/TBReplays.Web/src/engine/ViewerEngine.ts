@@ -140,16 +140,16 @@ export class ViewerEngine {
       this.api,
     );
 
-    this.drawingLayer = new DrawingLayer(
-      this.drawingsRoot,
+    this.tankLayer = new TankLayer(
+      this.tanksRoot,
       this.terrainRoot,
       this.camera,
       this.renderer,
       this.controls,
     );
 
-    this.tankLayer = new TankLayer(
-      this.tanksRoot,
+    this.drawingLayer = new DrawingLayer(
+      this.drawingsRoot,
       this.terrainRoot,
       this.camera,
       this.renderer,
@@ -208,6 +208,10 @@ export class ViewerEngine {
 
   public setOnlineDrawingAccess(allowed: boolean): void {
     this.drawingLayer.setEnabled(allowed && this.mode === 'workspace');
+    this.tankLayer.setEditable(allowed && this.mode === 'workspace');
+  }
+  public setTankOnlineHandlers(handlers: import('./layers/TankLayer').TankOnlineHandlers | null): void {
+    this.tankLayer.setOnlineHandlers(handlers);
   }
   public setDrawingHandlers(handlers: { upsert: (stroke: DrawingStrokeModel) => void; remove: (id: string) => void } | null): void {
     this.drawingLayer.setOnlineHandlers(handlers);

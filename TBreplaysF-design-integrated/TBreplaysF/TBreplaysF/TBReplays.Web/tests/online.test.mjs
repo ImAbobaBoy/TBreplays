@@ -82,3 +82,22 @@ test('HTTP UUID generator works without randomUUID and produces UUID v4 identifi
   assert.equal(new Set(ids).size, ids.length);
   for (const id of ids) assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 });
+
+test('tank edits keep authors, detect gaps and preserve independent drawing layers', () => {
+  const tank = { id: 'tank', coordinateSpace: 'viewer-world-v1', label: 'IS-7', visualKey: 'heavy', team: 'ally', color: '#22c55e', pose: { x: 1, y: 0, z: 2, bodyYawDegrees: 0, turretYawDegrees: 30 }, aimTarget: { x: 50, y: 0, z: 100 } };
+  const first = applySketchChange(empty, { ...change, kind: 'upsertTank', stroke: undefined, tank });
+  assert.equal(first.tanks[0].authorId, 'editor');
+  const moved = applySketchChange(first, { ...change, kind: 'upsertTank', stroke: undefined, tank: { ...tank, pose: { ...tank.pose, x: 20 } }, revision: 2, userId: 'other' });
+  assert.equal(moved.tanks[0].authorId, 'editor');
+  assert.deepEqual(moved.tanks[0].tank.aimTarget, tank.aimTarget);
+  const lines = applySketchChange(moved, { ...change, revision: 3 });
+  const clearLines = applySketchChange(lines, { ...change, kind: 'clear', revision: 4, mapRevision: 2 });
+  assert.equal(clearLines.tanks.length, 1); assert.equal(clearLines.strokes.length, 0);
+  const clearTanks = applySketchChange(lines, { ...change, kind: 'clearTanks', revision: 4, mapRevision: 2 });
+  assert.equal(clearTanks.tanks.length, 0); assert.equal(clearTanks.strokes.length, 1);
+  const remove = applySketchChange(lines, { ...change, kind: 'removeTank', tankId: tank.id, revision: 4 });
+  assert.equal(remove.tanks.length, 0); assert.equal(remove.strokes.length, 1);
+  const map = applySketchChange(lines, { ...change, kind: 'setMap', mapId: 'next', revision: 4, mapRevision: 2 });
+  assert.equal(map.tanks.length, 0); assert.equal(map.strokes.length, 0);
+  assert.equal(applySketchChange(lines, { ...change, kind: 'upsertTank', tank, revision: 5 }), null);
+});

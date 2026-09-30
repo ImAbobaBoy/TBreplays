@@ -34,6 +34,7 @@ export function useOnlineViewer(engine: ViewerEngine | null, loadMap: (id: strin
   }, [engine, ready, mapId, online.state.board, online.state.pending]);
   useEffect(() => {
     engine?.setOnlineDrawingAccess(online.canEdit && ready?.engine === engine && ready?.mapId === mapId);
+    if (!online.canEdit) engine?.setManualTanks((online.client.getSnapshot().board?.tanks ?? []).map(x => x.tank));
   }, [engine, ready, mapId, online.canEdit, mode]);
   useEffect(() => {
     if (!engine) return;

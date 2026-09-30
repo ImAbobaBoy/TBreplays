@@ -1,3 +1,4 @@
+import { useOnlineTanks } from '../features/online/useOnlineTanks';
 import { useOnline } from '../features/online/OnlineRoot';
 import { useOnlineViewer } from '../features/online/useOnlineViewer';
 import { useMemo, useRef, useState } from 'react';
@@ -41,6 +42,10 @@ export function App() {
   const online = useOnline();
   const [onlineEngine, setOnlineEngine] = useState<ViewerEngine | null>(null);
   const [state, setState] = useState(createInitialAppState);
+  const onlineTanks = useOnlineTanks(onlineEngine, tanks => setState(current => ({
+    ...current, manualTanks: tanks,
+    selectedManualTankId: tanks.some(x => x.id === current.selectedManualTankId) ? current.selectedManualTankId : null,
+  })));
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('tactics');
   const viewerEngineRef = useRef<ViewerEngine | null>(null);
 
@@ -164,32 +169,9 @@ export function App() {
   };
 
   const deleteSelectedManualTank = () => {
-    setState((current) => {
-      if (!current.selectedManualTankId) {
-        return current;
-      }
-
-      return {
-        ...current,
-        manualTanks: current.manualTanks.filter((tank) => {
-          return tank.id !== current.selectedManualTankId;
-        }),
-        selectedManualTankId: null,
-        status: 'Танк удалён.',
-      };
-    });
+    if (state.selectedManualTankId) onlineTanks.remove(state.selectedManualTankId);
   };
-
-  const clearManualTanks = () => {
-    viewerEngineRef.current?.clearManualTanks();
-
-    setState((current) => ({
-      ...current,
-      manualTanks: [],
-      selectedManualTankId: null,
-      status: 'Ручные танки очищены.',
-    }));
-  };
+  const clearManualTanks = () => onlineTanks.clear();
 
   const exportStrategyPng = async () => {
     if (!viewerEngineRef.current) {
@@ -437,7 +419,8 @@ export function App() {
         ...current,
         mapId,
         calibration,
-        manualTanks: [],
+        manualTanks: online.client.getSnapshot().board?.mapId === mapId
+          ? (online.client.getSnapshot().board?.tanks ?? []).map(x => x.tank) : [],
         selectedManualTankId: null,
         replayLoaded: false,
         playback,
@@ -569,7 +552,7 @@ export function App() {
         onDrawingLineStyleChange={setDrawingLineStyle}
         onDrawingArrowModeChange={setDrawingArrowMode}
         onClearDrawings={clearDrawings}
-        onManualTankChange={updateManualTank}
+        onManualTankChange={onlineTanks.commit}
         onDeleteSelectedManualTank={deleteSelectedManualTank}
         onClearManualTanks={clearManualTanks}
         onExportStrategyPng={exportStrategyPng}

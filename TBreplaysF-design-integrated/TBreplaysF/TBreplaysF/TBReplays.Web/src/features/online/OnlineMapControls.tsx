@@ -11,7 +11,7 @@ export function OnlineMapControls() {
   const apply = async (clear: boolean) => {
     const board = state.board;
     if (!canEdit || !board) return;
-    if (!window.confirm(clear ? 'Очистить рисунки для всех участников?' : 'Сменить общую карту и очистить рисунки для всех участников?')) return;
+    if (!window.confirm(clear ? 'Очистить рисунки для всех участников?' : 'Сменить общую карту и удалить рисунки и танковые метки для всех участников?')) return;
     setBusy(true); setError('');
     try {
       const id = mapId.trim();

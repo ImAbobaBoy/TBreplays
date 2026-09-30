@@ -2126,3 +2126,25 @@
 }
 .tbr-design .map-export-controls button:disabled { opacity: .45; cursor: default; }
 .tbr-design .map-export-controls span { max-width: 240px; font-size: 12px; color: #eee; background: #101216; }
+
+/* Restore the original roster and animated role controls for actual accounts. */
+.tbr-design .online-roster { margin-top: 14px; }
+.tbr-design .online-roster .compact-roster { max-height: 220px; overflow-y: auto; }
+.tbr-design .online-roster .role-chip {
+  width: 108px; min-height: 26px; padding: 0 1px 3px; margin: 0;
+  border: 0; border-radius: 0; background: transparent; color: var(--muted);
+  font-size: 14px; font-weight: 400; line-height: 1; text-align: right;
+}
+.tbr-design .online-roster .role-chip:disabled { opacity: 1; cursor: default; }
+.tbr-design .online-roster .role-chip:not(:disabled):hover { color: var(--text); }
+.tbr-design .online-roster .role-chip:disabled .role-label::after { display: none; }
+.tbr-design .online-roster .user-name-with-status { min-width: 0; display: flex; align-items: center; gap: 7px; }
+.online-user-dot { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: #646870; }
+.online-user-dot.connected { background: #22c55e; }
+.role-slide-out { animation: role-slide-out 300ms ease both; }
+.role-slide-in { animation: role-slide-in 300ms ease both; }
+@keyframes role-slide-out { to { transform: translateY(-100%); opacity: 0; } }
+@keyframes role-slide-in { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.tbr-design .tank-settings-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.tbr-design .tank-settings-fieldset:disabled { opacity: .6; }
+@media (prefers-reduced-motion: reduce) { .role-slide-out, .role-slide-in { animation: none; } }
