@@ -21,6 +21,9 @@ public static class OnlineHosting
         services.AddSingleton<OnlineSecurity>();
         services.AddSingleton<OnlineConnections>();
         services.AddSingleton<SketchService>();
+        services.AddSingleton<IReplaySyncCatalog, ReplaySyncCatalog>();
+        services.AddSingleton<ReplaySyncService>();
+        services.AddHostedService(sp => sp.GetRequiredService<ReplaySyncService>());
         services.AddSingleton<TBReplays.Strategies.StrategySlideStorageService>();
         services.AddIdentityCore<OnlineUser>(options =>
         {

@@ -101,3 +101,40 @@ test('tank edits keep authors, detect gaps and preserve independent drawing laye
   assert.equal(map.tanks.length, 0); assert.equal(map.strokes.length, 0);
   assert.equal(applySketchChange(lines, { ...change, kind: 'upsertTank', tank, revision: 5 }), null);
 });
+
+const { replayTimeAt } = await moduleFromSource('../src/features/online/OnlineModels.ts');
+const { ReplayPlaybackController } = await moduleFromSource('../src/engine/replay/ReplayPlaybackController.ts');
+test('clock projection uses speed, bounds and paused anchors', () => {
+  const anchor = { time: 1.25, minTime: 0, maxTime: 120, speed: 2, isPlaying: true, updatedAtUnixMs: 10000 };
+  assert.equal(replayTimeAt(anchor, 12500), 6.25);
+  assert.equal(replayTimeAt(anchor, 9000), 1.25);
+  assert.equal(replayTimeAt(anchor, 999999), 120);
+  assert.equal(replayTimeAt({ ...anchor, isPlaying: false }, 12500), 1.25);
+});
+test('remote seek, speed and play are atomic; end never restarts on heartbeat', () => {
+  const player = new ReplayPlaybackController(); player.loadReplay('test', 0, 120);
+  player.synchronize(1.25, 2, true, 1000);
+  assert.equal(player.update(2000).time, 3.25);
+  player.synchronize(120, 2, true, 2000);
+  assert.equal(player.getState().time, 120); assert.equal(player.getState().isPlaying, false);
+  player.synchronize(12, .5, false, 3000); assert.equal(player.update(4000), null);
+  assert.equal(player.getState().time, 12);
+});
+
+const { replayCorrection } = await moduleFromSource('../src/features/online/OnlineModels.ts');
+test('periodic sync tolerates two seconds both ways, explicit commands still seek', () => {
+  const remote = { time: 75, minTime: 0, maxTime: 120, speed: 1, isPlaying: true, updatedAtUnixMs: 10000 };
+  const local = { time: 73, speed: 1, isPlaying: true };
+  assert.equal(replayCorrection(remote, local, 10000, false, false), null);
+  assert.equal(replayCorrection(remote, { ...local, time: 77 }, 10000, false, false), null);
+  assert.equal(replayCorrection(remote, { ...local, time: 72.9 }, 10000, false, false).time, 75);
+  assert.equal(replayCorrection(remote, local, 10000, true, false).time, 75);
+  assert.equal(replayCorrection(remote, { ...local, time: 60 }, 10000, false, true), null);
+});
+test('periodic flag correction and natural finish never seek inside tolerance', () => {
+  const remote = { time: 75, minTime: 0, maxTime: 120, speed: 1, isPlaying: false, updatedAtUnixMs: 10000 };
+  assert.deepEqual(replayCorrection(remote, { time: 73, speed: 1, isPlaying: true }, 10000, false, false),
+    { time: 73, speed: 1, playing: false });
+  assert.equal(replayCorrection({ ...remote, time: 120 }, { time: 118, speed: 1, isPlaying: true }, 10000, false, false), null);
+  assert.equal(replayCorrection({ ...remote, time: 118, isPlaying: true }, { time: 120, speed: 1, isPlaying: false }, 10000, false, false), null);
+});

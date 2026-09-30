@@ -58,4 +58,5 @@ export function useOnlineViewer(engine: ViewerEngine | null, loadMap: (id: strin
     });
     return () => engine.setDrawingHandlers(null);
   }, [engine]);
+  return ready?.engine === engine && ready?.mapId === mapId && !!mapId;
 }

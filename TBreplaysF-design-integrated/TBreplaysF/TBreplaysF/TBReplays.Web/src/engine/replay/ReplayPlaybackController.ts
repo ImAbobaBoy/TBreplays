@@ -18,10 +18,6 @@ export class ReplayPlaybackController {
     minTime: number,
     maxTime: number,
   ): ReplayPlaybackState {
-    // TODO: Совместный просмотр.
-    // Сейчас это локальное состояние проигрывателя в одном браузере.
-    // Потом этот переход должен соответствовать SignalR-команде loadReplay(replayId, mapId, revision),
-    // а остальные клиенты будут сами грузить parse-result по replayId.
     this.lastUpdateTimestampMs = null;
 
     this.state = {
@@ -115,6 +111,14 @@ export class ReplayPlaybackController {
       revision: this.state.revision + 1,
     };
 
+    return this.getState();
+  }
+
+  public synchronize(time: number, speed: number, isPlaying: boolean, timestampMs: number): ReplayPlaybackState {
+    const safeTime = this.clampTime(time);
+    this.state = { ...this.state, time: safeTime, speed,
+      isPlaying: isPlaying && safeTime < this.state.maxTime, revision: this.state.revision + 1 };
+    this.lastUpdateTimestampMs = this.state.isPlaying ? timestampMs : null;
     return this.getState();
   }
 

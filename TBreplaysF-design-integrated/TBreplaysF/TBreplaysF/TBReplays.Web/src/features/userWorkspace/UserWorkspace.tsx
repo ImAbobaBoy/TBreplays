@@ -39,6 +39,8 @@ type WorkspaceReplayRow = {
 };
 
 type UserWorkspaceProps = {
+  replaySyncError: string;
+  onRetryReplay: () => void;
   state: AppState;
   selectedTank: ManualTankModel | null;
   onModeChange: (mode: AppMode) => void;
@@ -100,7 +102,8 @@ export function UserWorkspace({
   state,
   selectedTank,
   onModeChange,
-  onReplayIdChange,
+  replaySyncError,
+  onRetryReplay,
   onImportReplayFiles,
   onLoadCurrentSessionReplays,
   onLoadReplayById,
@@ -122,6 +125,7 @@ export function UserWorkspace({
   onPauseReplay,
   onSeekReplayBy,
   onSeekReplayTo,
+  onReplaySpeedChange,
 }: UserWorkspaceProps) {
   const online = useOnline();
   const [exporting, setExporting] = useState(false);
@@ -147,11 +151,12 @@ export function UserWorkspace({
   const activeMap = availableWorkspaceMaps.find(map => map.id === online.state.board?.mapId)
     ?? { id: online.state.board?.mapId ?? '', title: online.state.board?.mapId ?? 'Карта не выбрана', replayMapName: '' };
   const visibleReplays = replays.filter(replay => !activeMap.replayMapName || replay.mapName === activeMap.replayMapName);
+  const canSelectReplay = online.user.role !== 'observer' && online.state.status === 'connected' && !online.state.replayPending;
   const hasReplay = state.replayLoaded && state.playback.replayId !== null;
   const maxTime = Math.max(state.playback.maxTime, state.playback.minTime + 0.05);
-  const progress = hasReplay
-    ? Math.max(0, Math.min(100, (state.playback.time - state.playback.minTime) / (maxTime - state.playback.minTime) * 100))
-    : 0;
+  const canControlReplay = canSelectReplay && hasReplay && !!online.state.replay?.leaderConnectionId;
+  const leader = online.state.users.find(user => user.id === online.state.replay?.leaderId);
+
 
   const swatchColors = swatchPositions.map(interpolateColor);
 
@@ -273,43 +278,33 @@ export function UserWorkspace({
           <div className="header-center-wrap">
             <div className="header-center-panel">
               <div className="control-row">
-                <button className="header-action rewind" disabled={!hasReplay} onClick={() => onSeekReplayBy(-30)}>-30</button>
-                <button className="header-action rewind" disabled={!hasReplay} onClick={() => onSeekReplayBy(-10)}>-10</button>
-                <button className="header-action rewind" disabled={!hasReplay} onClick={() => onSeekReplayBy(-5)}>-5</button>
+                <button className="header-action rewind" disabled={!canControlReplay} onClick={() => onSeekReplayBy(-30)}>-30</button>
+                <button className="header-action rewind" disabled={!canControlReplay} onClick={() => onSeekReplayBy(-10)}>-10</button>
+                <button className="header-action rewind" disabled={!canControlReplay} onClick={() => onSeekReplayBy(-5)}>-5</button>
                 <button
                   className="header-action pause replay-playback-toggle"
                   type="button"
-                  disabled={!hasReplay}
+                  disabled={!canControlReplay}
                   aria-label={state.playback.isPlaying ? 'Поставить реплей на паузу' : 'Запустить реплей'}
                   onClick={state.playback.isPlaying ? onPauseReplay : onPlayReplay}
                 >
                   {state.playback.isPlaying ? <PauseIcon /> : <PlayIcon />}
                 </button>
-                <button className="header-action forward" disabled={!hasReplay} onClick={() => onSeekReplayBy(5)}>+5</button>
-                <button className="header-action forward" disabled={!hasReplay} onClick={() => onSeekReplayBy(10)}>+10</button>
-                <button className="header-action forward" disabled={!hasReplay} onClick={() => onSeekReplayBy(30)}>+30</button>
+                <button className="header-action forward" disabled={!canControlReplay} onClick={() => onSeekReplayBy(5)}>+5</button>
+                <button className="header-action forward" disabled={!canControlReplay} onClick={() => onSeekReplayBy(10)}>+10</button>
+                <button className="header-action forward" disabled={!canControlReplay} onClick={() => onSeekReplayBy(30)}>+30</button>
+                <select className="header-action" aria-label="Скорость реплея" value={state.playback.speed}
+                  disabled={!canControlReplay} onChange={event => onReplaySpeedChange(Number(event.target.value))}>
+                  {[.25, .5, 1, 2, 4].map(speed => <option key={speed} value={speed}>{speed}×</option>)}
+                </select>
               </div>
 
               <div className="timeline-block">
                 <div className="timeline-row">
                   <span className="timeline-edge left">0</span>
                   <div className="progress-wrap">
-                    <div className="progress-rail">
-                      <span className="progress-fill" style={{ width: `${progress}%` }} />
-                      <span className="progress-handle" style={{ left: `${progress}%` }} />
-                      <input
-                        className="timeline-input"
-                        type="range"
-                        min={state.playback.minTime}
-                        max={maxTime}
-                        step={0.05}
-                        value={state.playback.time}
-                        disabled={!hasReplay}
-                        aria-label="Позиция реплея"
-                        onChange={(event) => onSeekReplayTo(event.target.valueAsNumber)}
-                      />
-                    </div>
-                    <span className="current-time" style={{ left: `${progress}%` }}>{formatTimelineTime(state.playback.time)}</span>
+                    <ReplayTimelineInput time={state.playback.time} min={state.playback.minTime} max={maxTime}
+                      disabled={!canControlReplay} onSeek={onSeekReplayTo} />
                   </div>
                   <span className="timeline-edge right">{formatTimelineTime(state.playback.maxTime)}</span>
                 </div>
@@ -421,7 +416,7 @@ export function UserWorkspace({
                   <span className="panel-label static">Реплеи</span>
                   <span className="tiny-meta">{visibleReplays.length} файлов</span>
                 </div>
-                <button className="upload-button" onClick={() => uploadInputRef.current?.click()}>Загрузить</button>
+                <button disabled={!canSelectReplay || !state.mapLoaded} className="upload-button" onClick={() => uploadInputRef.current?.click()}>Загрузить</button>
                 <input
                   ref={uploadInputRef}
                   type="file"
@@ -435,6 +430,13 @@ export function UserWorkspace({
                 />
               </div>
 
+              <div className="replay-sync-status" role="status">
+                {online.state.replay?.replayId && <span>{online.state.replay.leaderConnectionId
+                  ? `Ведущий: ${leader?.login ?? 'подключается…'}` : 'Ведущий отключён — реплей на паузе.'}</span>}
+                {online.state.replay?.replayId && !state.replayLoaded && !replaySyncError && <span> Загрузка общего реплея…</span>}
+                {online.state.replayMessage && <span> {online.state.replayMessage}</span>}
+                {replaySyncError && <span> {replaySyncError} <button onClick={onRetryReplay}>Повторить загрузку</button></span>}
+              </div>
               <div className="replays-content split-toolbar-list">
                 {visibleReplays.length === 0 ? (
                   <div className="replay-empty">Для этой карты реплеев пока нет</div>
@@ -445,16 +447,16 @@ export function UserWorkspace({
                         key={replay.id}
                         className={state.replayId === replay.replayId ? 'selected' : ''}
                         role="button"
-                        tabIndex={0}
+                        tabIndex={canSelectReplay ? 0 : -1}
+                        aria-disabled={!canSelectReplay}
                         onClick={() => {
-                          onReplayIdChange(replay.replayId);
+                          if (!canSelectReplay) return;
                           void onLoadReplayById(replay.replayId);
                         }}
                         onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
+                          if (canSelectReplay && (event.key === 'Enter' || event.key === ' ')) {
                             event.preventDefault();
-                            onReplayIdChange(replay.replayId);
-                            void onLoadReplayById(replay.replayId);
+                              void onLoadReplayById(replay.replayId);
                           }
                         }}
                       >
@@ -758,4 +760,28 @@ function TankMarkerIcon({ type }: { type: TankVisualKey }) {
   if (type === 'medium') return <svg className="marker-option-icon" viewBox="0 0 24 24"><g fill="currentColor" transform="translate(12 12) rotate(42)"><rect x="-4.8" y="-5" width="4.3" height="10" rx=".35" /><rect x=".5" y="-5" width="4.3" height="10" rx=".35" /></g></svg>;
   if (type === 'light') return <svg className="marker-option-icon" viewBox="0 0 24 24"><path fill="currentColor" d="m12 3.1 6.4 8.9-6.4 8.9L5.6 12Z" /></svg>;
   return <svg className="marker-option-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M4.2 7.1h15.6L12 20.9Z" /></svg>;
+}
+
+function ReplayTimelineInput({ time, min, max, disabled, onSeek }: {
+  time: number; min: number; max: number; disabled: boolean; onSeek: (time: number) => void;
+}) {
+  const [draft, setDraft] = useState<number | null>(null);
+  const pending = useRef<number | null>(null);
+  const commit = () => {
+    const value = pending.current; pending.current = null; setDraft(null);
+    if (!disabled && value !== null) onSeek(value);
+  };
+  useEffect(() => { if (disabled) { pending.current = null; setDraft(null); } }, [disabled]);
+  const displayed = draft ?? time;
+  const progress = Math.max(0, Math.min(100, (displayed - min) / (max - min) * 100));
+  return <><div className="progress-rail">
+    <span className="progress-fill" style={{ width: `${progress}%` }} />
+    <span className="progress-handle" style={{ left: `${progress}%` }} />
+    <input className="timeline-input" type="range" min={min} max={max} step={.05}
+    value={draft ?? time} disabled={disabled} aria-label="Позиция реплея"
+    onChange={event => { pending.current = event.target.valueAsNumber; setDraft(pending.current); }}
+    onPointerDown={event => event.currentTarget.setPointerCapture(event.pointerId)}
+    onPointerUp={commit} onKeyUp={commit} onBlur={commit}
+    onPointerCancel={() => { pending.current = null; setDraft(null); }} />
+    </div><span className="current-time" style={{ left: `${progress}%` }}>{formatTimelineTime(displayed)}</span></>;
 }

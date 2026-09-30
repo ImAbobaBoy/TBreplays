@@ -4,7 +4,7 @@ using TBReplays.Online;
 namespace TBReplays.Controllers;
 
 [ApiController, Route("api/sketch")]
-public sealed class SketchController(SketchService sketches, OnlineConnections connections) : ControllerBase
+public sealed class SketchController(SketchService sketches, OnlineConnections connections, ReplaySyncService replays) : ControllerBase
 {
     [HttpGet]
     public async Task<SketchState> Get(CancellationToken ct) => await sketches.GetAsync(ct);
@@ -16,6 +16,7 @@ public sealed class SketchController(SketchService sketches, OnlineConnections c
     public async Task<IActionResult> Apply(SketchCommand command, CancellationToken ct)
     {
         var result = await sketches.ApplyAsync(User, command, ct);
+        if (result.Applied && result.Change?.Kind == "setMap") await replays.MapChangedAsync();
         return result.Applied ? Ok(result) : result.Error switch
         {
             "unauthorized" => Unauthorized(result),

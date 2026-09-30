@@ -21,7 +21,7 @@ public sealed class ReplaysController : ControllerBase
         _replaySessionService = replaySessionService;
     }
 
-    [Authorize(Roles = OnlineRoles.Admin)]
+    [Authorize(Roles = OnlineRoles.Writers)]
     [HttpPost("import-local")]
     public async Task<ActionResult<ReplayImportItemResultDto>> ImportLocal(
         [FromQuery] string? replayFileName,
@@ -47,6 +47,7 @@ public sealed class ReplaysController : ControllerBase
         }
     }
 
+    [Authorize(Roles = OnlineRoles.Writers)]
     [HttpPost("import")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(1024L * 1024L * 1024L)]

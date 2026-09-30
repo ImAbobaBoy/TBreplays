@@ -80,6 +80,7 @@ export class ViewerEngine {
 
   private mode: AppMode = 'workspace';
   private disposed = false;
+  private replayLoadGeneration = 0;
 
   public constructor(container: HTMLDivElement) {
     this.container = container;
@@ -321,11 +322,9 @@ export class ViewerEngine {
       throw new Error('Replay ID пустой.');
     }
 
-    // TODO: Совместный просмотр.
-    // Сейчас клиент локально загружает presentation и строит ReplayTimeline.
-    // Потом SignalR должен рассылать только команду loadReplay(replayId, mapId, revision),
-    // а каждый браузер сам загрузит presentation по replayId и повторит сценарий.
+    const generation = ++this.replayLoadGeneration;
     const presentation = await this.api.getReplayPresentation(safeReplayId);
+    if (this.disposed || generation !== this.replayLoadGeneration) throw new Error('Загрузка реплея отменена.');
     const timeline = buildReplayTimeline(safeReplayId, presentation);
 
     this.replayLayer.load(timeline, this.currentCalibration);
@@ -351,6 +350,7 @@ export class ViewerEngine {
   }
 
   public clearReplay(): void {
+    this.replayLoadGeneration++;
     this.replayLayer.clear();
 
     const playback = this.replayPlaybackController.clear();
@@ -399,6 +399,13 @@ export class ViewerEngine {
 
     this.notifyReplayPlaybackChanged(playback, true);
 
+    return playback;
+  }
+
+  public synchronizeReplay(time: number, speed: number, playing: boolean): ReplayPlaybackState {
+    const playback = this.replayPlaybackController.synchronize(time, speed, playing, performance.now());
+    this.replayLayer.setTime(playback.time);
+    this.notifyReplayPlaybackChanged(playback, true);
     return playback;
   }
 
@@ -502,6 +509,7 @@ export class ViewerEngine {
     }
 
     this.disposed = true;
+    this.replayLoadGeneration++;
 
     this.resizeObserver.disconnect();
     this.renderer.setAnimationLoop(null);

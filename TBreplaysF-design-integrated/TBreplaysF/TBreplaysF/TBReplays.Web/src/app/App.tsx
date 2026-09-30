@@ -1,3 +1,5 @@
+import { useOnlineReplay } from '../features/online/useOnlineReplay';
+import type { ReplayCommand } from '../features/online/OnlineModels';
 import { useOnlineTanks } from '../features/online/useOnlineTanks';
 import { useOnline } from '../features/online/OnlineRoot';
 import { useOnlineViewer } from '../features/online/useOnlineViewer';
@@ -206,6 +208,7 @@ export function App() {
   };
 
   const autoImportLocalReplay = async () => {
+    if (online.user.role === 'observer') return;
     if (!viewerEngineRef.current) {
       return;
     }
@@ -222,6 +225,7 @@ export function App() {
   };
 
   const importReplayFiles = async (files: File[]): Promise<ReplayImportBatchResult | null> => {
+    if (online.user.role === 'observer' || online.state.status !== 'connected') return null;
     if (!viewerEngineRef.current) {
       setStatus('ViewerEngine ещё не готов.');
       return null;
@@ -236,6 +240,8 @@ export function App() {
 
       setStatus(`Replay import: успешно ${successCount}, ошибок ${failedCount}.`);
 
+      const first = result.items.find(item => item.success && item.replayId);
+      if (first?.replayId) await online.client.replayCommand({ kind: 'load', replayId: first.replayId });
       return result;
     } catch (error) {
       console.error(error);
@@ -266,133 +272,18 @@ export function App() {
     }
   };
 
-  const loadReplayById = async (rawReplayId: string) => {
-    const replayId = rawReplayId.trim();
-
-    if (!replayId) {
-      setStatus('Вставь Replay ID или сначала импортируй локальный replay.');
-      return;
-    }
-
-    if (!viewerEngineRef.current) {
-      setStatus('ViewerEngine ещё не готов.');
-      return;
-    }
-
-    try {
-      setStatus('Загружаю данные реплея...');
-
-      const summary = await viewerEngineRef.current.loadReplay(replayId);
-      const playback = viewerEngineRef.current.getReplayPlaybackState();
-
-      setState((current) => ({
-        ...current,
-        replayId,
-        replayLoaded: true,
-        playback,
-        replayTeamHealth: viewerEngineRef.current?.getReplayTeamHealthState(playback.time) ?? null,
-        status: `Replay загружен: tanks=${summary.trackCount}, points=${summary.sampleCount}`,
-      }));
-    } catch (error) {
-      console.error(error);
-
-      setState((current) => ({
-        ...current,
-        replayLoaded: false,
-        playback: {
-          ...current.playback,
-          replayId: null,
-          time: 0,
-          minTime: 0,
-          maxTime: 0,
-          isPlaying: false,
-          revision: current.playback.revision + 1,
-        },
-        replayTeamHealth: null,
-        status: error instanceof Error
-          ? error.message
-          : 'Неизвестная ошибка загрузки replay.',
-      }));
-    }
+  const commandReplay = async (command: ReplayCommand) => {
+    if (online.user.role === 'observer') return;
+    await online.client.replayCommand(command);
   };
-
-  const loadReplay = async () => {
-    await loadReplayById(state.replayId);
-  };
-
-  const detachReplay = () => {
-    if (!viewerEngineRef.current) {
-      setStatus('ViewerEngine ещё не готов.');
-      return;
-    }
-
-    viewerEngineRef.current.clearReplay();
-
-    const playback = viewerEngineRef.current.getReplayPlaybackState();
-
-    setState((current) => ({
-      ...current,
-      replayId: '',
-      replayLoaded: false,
-      playback,
-      status: 'Replay снят с карты.',
-    }));
-  };
-
-  const playReplay = () => {
-    if (!viewerEngineRef.current) {
-      setStatus('ViewerEngine ещё не готов.');
-      return;
-    }
-
-    const playback = viewerEngineRef.current.playReplay();
-
-    handleReplayPlaybackChanged(playback);
-  };
-
-  const pauseReplay = () => {
-    if (!viewerEngineRef.current) {
-      setStatus('ViewerEngine ещё не готов.');
-      return;
-    }
-
-    const playback = viewerEngineRef.current.pauseReplay();
-
-    handleReplayPlaybackChanged(playback);
-  };
-
-  const seekReplayBy = (deltaSeconds: number) => {
-    if (!viewerEngineRef.current) {
-      setStatus('ViewerEngine ещё не готов.');
-      return;
-    }
-
-    const playback = viewerEngineRef.current.seekReplayBy(deltaSeconds);
-
-    handleReplayPlaybackChanged(playback);
-  };
-
-  const seekReplayTo = (time: number) => {
-    if (!viewerEngineRef.current) {
-      setStatus('ViewerEngine ещё не готов.');
-      return;
-    }
-
-    const playback = viewerEngineRef.current.seekReplayTo(time);
-
-    handleReplayPlaybackChanged(playback);
-  };
-
-  const setReplaySpeed = (speed: number) => {
-    if (!viewerEngineRef.current) {
-      setStatus('ViewerEngine ещё не готов.');
-      return;
-    }
-
-    const playback = viewerEngineRef.current.setReplaySpeed(speed);
-
-    handleReplayPlaybackChanged(playback);
-  };
+  const loadReplayById = async (id: string) => { await commandReplay({ kind: 'load', replayId: id.trim() }); };
+  const loadReplay = async () => { await loadReplayById(state.replayId); };
+  const detachReplay = () => { void commandReplay({ kind: 'unload' }); };
+  const playReplay = () => { void commandReplay({ kind: 'play' }); };
+  const pauseReplay = () => { void commandReplay({ kind: 'pause' }); };
+  const seekReplayTo = (time: number) => { void commandReplay({ kind: 'seek', time }); };
+  const seekReplayBy = (delta: number) => seekReplayTo((viewerEngineRef.current?.getReplayPlaybackState().time ?? 0) + delta);
+  const setReplaySpeed = (speed: number) => { void commandReplay({ kind: 'speed', speed }); };
 
   const loadMapById = async (rawMapId: string) => {
     const mapId = rawMapId.trim();
@@ -408,7 +299,7 @@ export function App() {
     }
 
     try {
-      setStatus('Загружаю карту...');
+      setState(current => ({ ...current, mapLoaded: false, status: 'Загружаю карту...' }));
 
       await viewerEngineRef.current.loadMap(mapId);
 
@@ -448,7 +339,12 @@ export function App() {
     try { await loadMapById(state.mapId); } catch { /* Status already contains the load error. */ }
   };
 
-  useOnlineViewer(onlineEngine, loadMapById, state.mode, setStatus);
+  const commonMapReady = useOnlineViewer(onlineEngine, loadMapById, state.mode, setStatus);
+  const replaySync = useOnlineReplay(onlineEngine, commonMapReady && state.mapLoaded && state.mapId === online.state.board?.mapId, id => {
+    const playback = onlineEngine?.getReplayPlaybackState() ?? state.playback;
+    setState(current => ({ ...current, replayId: id ?? '', replayLoaded: id !== null,
+      playback, replayTeamHealth: id ? onlineEngine?.getReplayTeamHealthState(playback.time) ?? null : null }));
+  }, setStatus);
 
   const captureStrategySnapshot = (): StrategySnapshot => {
     if (!viewerEngineRef.current) {
@@ -534,6 +430,8 @@ export function App() {
   if (state.mode === 'workspace') {
     return (
       <UserWorkspace
+        replaySyncError={replaySync.error}
+        onRetryReplay={replaySync.retry}
         state={state}
         selectedTank={selectedTank}
         onModeChange={setMode}
@@ -803,7 +701,7 @@ function ReplayInspector({
       <MetadataRow label="Плеер" value={state.playback.isPlaying ? 'Идёт' : 'Пауза'} />
 
       <div className="empty-note">
-        TODO: Для будущего совместного просмотра через SignalR синхронизировать только команды loadReplay, play, pause, seek, changeSpeed. Не слать позиции танков/HP/траектории каждый кадр.
+        Общий реплей управляется командами. Ведущий сверяет время каждые 5 секунд; позиции танков рассчитываются в браузере.
       </div>
     </div>
   );

@@ -48,6 +48,53 @@ try
     var mapped = await Json(admin.PostAsJsonAsync("/api/sketch/commands", setMap));
     Check(mapped["applied"]!.GetValue<bool>(), "map selected");
     await Event(socketB, "SketchChanged", 1);
+    var replay = await ReplaySnapshot(socketA);
+    Check(replay["replayId"] is null, "room starts without replay");
+    var missing = await ReplayCommand(socketA, replay, "load", "missing");
+    Check(missing["error"]!.GetValue<string>() == "replayUnavailable", "missing replay rejected");
+    var wrongMap = await ReplayCommand(socketA, replay, "load", "wrong-map");
+    Check(wrongMap["error"]!.GetValue<string>() == "replayMapMismatch", "replay requires common map");
+    var loadedReplay = await ReplayCommand(socketB, replay, "load", "fixture");
+    Check(loadedReplay["applied"]!.GetValue<bool>(), "editor loads shared replay");
+    replay = loadedReplay["state"]!;
+    Check(replay["leaderId"]!.GetValue<string>() == userId && replay["maxTime"]!.GetValue<double>() == 120, "loader is leader, server owns bounds");
+    var late = await ReplaySnapshot(socketA);
+    Check(late["sessionId"]!.GetValue<string>() == replay["sessionId"]!.GetValue<string>(), "participants receive current replay id and session");
+    var foreignTick = await ReplayTick(socketA, replay, 0, false, 1);
+    Check(foreignTick["error"]!.GetValue<string>() == "notLeader", "other editor cannot publish timing");
+    using (var secondTab = await Socket(viewerCookies, address))
+    {
+        var tabTick = await ReplayTick(secondTab, replay, 0, false, 1);
+        Check(tabTick["error"]!.GetValue<string>() == "notLeader", "same account other tab is not clock leader");
+    }
+    var playingReplay = await ReplayCommand(socketA, replay, "play");
+    Check(playingReplay["state"]!["isPlaying"]!.GetValue<bool>(), "another editor can play");
+    var stale = await ReplayCommand(socketB, replay, "seek", time: 30);
+    Check(stale["error"]!.GetValue<string>() == "replayConflict", "stale control rejected");
+    replay = playingReplay["state"]!;
+    var seekedReplay = await ReplayCommand(socketA, replay, "seek", time: 1.25);
+    Check(seekedReplay["state"]!["time"]!.GetValue<double>() == 1.25, "fractional seek retained");
+    var oldTick = await ReplayTick(socketB, replay, 0, true, 1);
+    Check(oldTick["error"]!.GetValue<string>() == "replayConflict", "old leader timing cannot undo seek");
+    replay = seekedReplay["state"]!;
+    var sped = await ReplayCommand(socketB, replay, "speed", speed: 2);
+    replay = sped["state"]!;
+    Check(replay["speed"]!.GetValue<double>() == 2, "speed shared");
+    var tick = await ReplayTick(socketB, replay, 10, true, 2);
+    Check(tick["applied"]!.GetValue<bool>() && tick["state"]!["revision"]!.GetValue<long>() == replay["revision"]!.GetValue<long>()
+        && tick["state"]!["sequence"]!.GetValue<long>() > replay["sequence"]!.GetValue<long>(), "timing changes sequence but not control revision");
+    replay = tick["state"]!;
+    var paused = await ReplayCommand(socketA, replay, "pause");
+    replay = paused["state"]!;
+    Check(!replay["isPlaying"]!.GetValue<bool>() && replay["time"]!.GetValue<double>() >= 10, "pause projects latest clock anchor");
+    var badSpeed = await ReplayCommand(socketA, replay, "speed", speed: 100);
+    Check(badSpeed["error"]!.GetValue<string>() == "invalidSpeed", "invalid speed rejected");
+    var clamped = await ReplayCommand(socketA, replay, "seek", time: 999);
+    replay = clamped["state"]!;
+    Check(replay["time"]!.GetValue<double>() == 120, "seek clamped to replay bounds");
+    var restart = await ReplayCommand(socketB, replay, "play");
+    replay = restart["state"]!;
+    Check(replay["time"]!.GetValue<double>() == 0, "play at end restarts replay");
     var stroke = new SketchStroke("line-1", "#22c55e", 2, "solid", "end", [new(0, 0, 0), new(10, 0, 10)]);
     var add = Command("upsert", 0, 1, stroke);
     await Send(socketB, new { type = 1, invocationId = "draw", target = "Apply", arguments = new[] { add } });
@@ -70,6 +117,8 @@ try
     await Expect(viewer.PostAsJsonAsync("/api/sketch/commands", Command("upsert", 0, 1, stroke with { Id = "late-line" })), 409);
     await Expect(admin.PutAsJsonAsync($"/api/users/{userId}/role", new { role = "observer" }), 200);
     await Closed(socketB);
+    var disconnectedReplay = await ReplaySnapshot(socketA);
+    Check(disconnectedReplay["leaderConnectionId"] is null && !disconnectedReplay["isPlaying"]!.GetValue<bool>(), "leader role revocation pauses replay");
     await Expect(viewer.PostAsJsonAsync("/api/sketch/commands", Command("clear", 4, 2)), 401);
     await Csrf(viewer);
     await Expect(viewer.PostAsJsonAsync("/api/auth/login", new { login = "viewer", password = "password123" }), 200);
@@ -77,6 +126,15 @@ try
     using var observerSocket = await Socket(viewerCookies, address);
     await Send(observerSocket, new { type = 1, invocationId = "forbidden", target = "Apply", arguments = new[] { Command("clear", 4, 2) } });
     var forbidden = await Completion(observerSocket, "forbidden");
+    var observerReplay = await ReplaySnapshot(observerSocket);
+    var forbiddenLoad = await ReplayCommand(observerSocket, observerReplay, "load", "fixture");
+    Check(forbiddenLoad["error"]!.GetValue<string>() == "forbidden", "observer cannot select replay");
+    var forbiddenPlay = await ReplayCommand(observerSocket, observerReplay, "play");
+    Check(forbiddenPlay["error"]!.GetValue<string>() == "forbidden", "observer cannot control playback");
+    var noLeader = await ReplayCommand(socketA, observerReplay, "play");
+    Check(noLeader["error"]!.GetValue<string>() == "leaderOffline", "cannot start without leader");
+    var takeover = await ReplayCommand(socketA, observerReplay, "load", "fixture");
+    Check(takeover["applied"]!.GetValue<bool>(), "editor can take over by selecting replay");
     Check(forbidden["result"]?["error"]?.GetValue<string>() == "forbidden", "observer websocket cannot draw");
     await Expect(admin.PostAsJsonAsync($"/api/users/{userId}/reset-password", new { password = "new-password123" }), 204);
     await Closed(observerSocket);
@@ -173,6 +231,7 @@ async Task<WebApplication> Start()
     builder.WebHost.UseUrls("http://127.0.0.1:0");
     builder.Services.AddControllers().AddApplicationPart(typeof(AuthController).Assembly);
     builder.AddOnline();
+    builder.Services.AddSingleton<IReplaySyncCatalog, TestReplayCatalog>();
     builder.Services.AddCors(options => options.AddPolicy("WebClient", policy => policy.WithOrigins("http://localhost:5173").AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
     var web = builder.Build();
     await web.InitializeOnlineAsync();
@@ -257,3 +316,27 @@ async Task Closed(ClientWebSocket socket)
 
 SketchCommand TankCommand(string kind, long revision, long epoch, SketchTank? tank = null, string? tankId = null)
     => new(Guid.NewGuid().ToString(), kind, revision, epoch, Tank: tank, TankId: tankId);
+
+async Task<JsonNode> ReplayCall(ClientWebSocket socket, string target, params object[] arguments)
+{
+    var id = Guid.NewGuid().ToString();
+    await Send(socket, new { type = 1, invocationId = id, target, arguments });
+    return (await Completion(socket, id))["result"]!;
+}
+Task<JsonNode> ReplaySnapshot(ClientWebSocket socket) => ReplayCall(socket, "GetReplay");
+Task<JsonNode> ReplayCommand(ClientWebSocket socket, JsonNode state, string kind, string? replayId = null, double? time = null, double? speed = null)
+    => ReplayCall(socket, "ReplayApply", new ReplaySyncCommand(Guid.NewGuid().ToString(), kind,
+        state["sessionId"]!.GetValue<string>(), state["revision"]!.GetValue<long>(), replayId, time, speed));
+Task<JsonNode> ReplayTick(ClientWebSocket socket, JsonNode state, double time, bool playing, double speed)
+    => ReplayCall(socket, "ReplayHeartbeat", new ReplayTiming(state["sessionId"]!.GetValue<string>(),
+        state["revision"]!.GetValue<long>(), time, playing, speed, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
+
+sealed class TestReplayCatalog : IReplaySyncCatalog
+{
+    public Task<ReplaySyncInfo?> ReadAsync(string replayId, CancellationToken ct) => Task.FromResult<ReplaySyncInfo?>(replayId switch
+    {
+        "fixture" => new(0, 120, "test-map", null),
+        "wrong-map" => new(0, 120, "other-map", null),
+        _ => null
+    });
+}

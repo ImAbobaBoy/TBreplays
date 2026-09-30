@@ -5,7 +5,7 @@ namespace TBReplays.Online;
 
 [Authorize]
 public sealed class SketchHub(SketchService sketches, OnlineSecurity security,
-    OnlineConnections connections, OnlineFiles files) : Hub
+    OnlineConnections connections, OnlineFiles files, ReplaySyncService replays) : Hub
 {
     public override async Task OnConnectedAsync()
     {
@@ -25,6 +25,7 @@ public sealed class SketchHub(SketchService sketches, OnlineSecurity security,
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         connections.Remove(Context.ConnectionId);
+        await replays.DisconnectedAsync(Context.ConnectionId);
         await Clients.All.SendAsync("UsersChanged", connections.List());
         await base.OnDisconnectedAsync(exception);
     }
@@ -45,9 +46,28 @@ public sealed class SketchHub(SketchService sketches, OnlineSecurity security,
     {
         var result = await sketches.ApplyAsync(Context.User!, command, Context.ConnectionAborted);
         if (result.Error == "unauthorized") Context.Abort();
+        if (result.Applied && result.Change?.Kind == "setMap") await replays.MapChangedAsync();
         return result;
     }
 
+    public async Task<ReplaySyncState> GetReplay()
+    {
+        await RequireSession();
+        return await replays.GetAsync(Context.UserIdentifier!, Context.ConnectionId,
+            Context.User!.IsInRole(OnlineRoles.Admin) || Context.User.IsInRole(OnlineRoles.Editor));
+    }
+    public async Task<ReplaySyncResult> ReplayApply(ReplaySyncCommand command)
+    {
+        var result = await replays.ApplyAsync(Context.User!, Context.ConnectionId, command);
+        if (result.Error == "unauthorized") Context.Abort();
+        return result;
+    }
+    public async Task<ReplaySyncResult> ReplayHeartbeat(ReplayTiming timing)
+    {
+        var result = await replays.TimingAsync(Context.User!, Context.ConnectionId, timing);
+        if (result.Error == "unauthorized") Context.Abort();
+        return result;
+    }
     private async Task RequireSession()
     {
         if (await security.GetCurrentAsync(Context.User, Context.ConnectionAborted) is not null) return;
