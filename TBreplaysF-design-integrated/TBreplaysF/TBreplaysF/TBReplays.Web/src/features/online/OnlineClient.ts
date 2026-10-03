@@ -1,7 +1,7 @@
 import { createId } from '../../utils/createId';
 import { HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import { API_BASE, onlineRequest } from '../../api/OnlineHttp';
-import { applySketchChange } from './OnlineModels';
+import { applyOptimisticSketchCommand, applySketchChange } from './OnlineModels';
 import type { ReplaySyncState, ReplayCommand, ReplayTiming, ReplaySyncResult, OnlineState, OnlineUser, SketchState, SketchChange, SketchCommand, SketchResult } from './OnlineModels';
 
 export class OnlineClient {
@@ -12,6 +12,13 @@ export class OnlineClient {
   private disposed = false;
   private refreshTask: Promise<void> | null = null;
   private buffered: SketchChange[] = [];
+  private confirmedBoard: SketchState | null = null;
+  private pendingSketch = new Map<string, {
+    request: SketchCommand;
+    timer: ReturnType<typeof setTimeout>;
+    resolve: () => void;
+    reject: (error: Error) => void;
+  }>();
   private timer: ReturnType<typeof setInterval> | undefined;
   readonly getSnapshot = () => this.state;
   readonly subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
@@ -25,15 +32,48 @@ export class OnlineClient {
     this.hub.onclose(() => { if (!this.disposed) { this.publish({ status: 'offline', connectionId: null, users: [], message: 'Соединение закрыто.' }); void this.checkSession(); } });
   }
   private publish(update: Partial<OnlineState>) { if (this.disposed) return; this.state = { ...this.state, ...update }; this.listeners.forEach(listener => listener()); }
+  private optimisticBoard(): SketchState | null {
+    if (!this.confirmedBoard) return null;
+    let board = this.confirmedBoard;
+    for (const pending of this.pendingSketch.values()) board = applyOptimisticSketchCommand(board, pending.request);
+    return board;
+  }
+  private publishBoard(update: Partial<OnlineState> = {}) {
+    this.publish({ board: this.optimisticBoard(), pending: this.pendingSketch.size > 0, ...update });
+  }
   private accept(board: SketchState) {
-    if (this.state.board && board.revision < this.state.board.revision) return;
-    this.publish({ board });
+    if (this.confirmedBoard && board.revision < this.confirmedBoard.revision) return;
+    this.confirmedBoard = board;
+    this.publishBoard();
+  }
+  private completeSketch(operationId: string) {
+    const pending = this.pendingSketch.get(operationId);
+    if (!pending) return false;
+    clearTimeout(pending.timer);
+    this.pendingSketch.delete(operationId);
+    pending.resolve();
+    return true;
+  }
+  private failSketch(operationId: string, error: Error, message: string) {
+    const pending = this.pendingSketch.get(operationId);
+    if (!pending) return false;
+    clearTimeout(pending.timer);
+    this.pendingSketch.delete(operationId);
+    pending.reject(error);
+    this.publishBoard({ message });
+    return true;
   }
   private receive(change: SketchChange) {
     if (this.refreshTask) { this.buffered.push(change); return; }
-    const board = applySketchChange(this.state.board, change);
-    if (board) this.accept(board);
-    else { this.buffered.push(change); void this.refresh().catch(() => this.publish({ status: 'offline', message: 'Доска не синхронизирована. Подключитесь снова.' })); }
+    const board = applySketchChange(this.confirmedBoard, change);
+    if (board) {
+      this.confirmedBoard = board;
+      this.completeSketch(change.operationId);
+      this.publishBoard();
+    } else {
+      this.buffered.push(change);
+      void this.refresh().catch(() => this.publish({ status: 'offline', message: 'Доска не синхронизирована. Подключитесь снова.' }));
+    }
   }
   async refresh(): Promise<void> {
     if (this.refreshTask) return this.refreshTask;
@@ -42,7 +82,7 @@ export class OnlineClient {
       this.accept(board);
       const changes = this.buffered.splice(0).sort((a, b) => a.revision - b.revision);
       for (const change of changes) {
-        const next = applySketchChange(this.state.board, change);
+        const next = applySketchChange(this.confirmedBoard, change);
         if (!next) throw new Error('Пропущена версия доски. Повторите подключение.');
         this.accept(next);
       }
@@ -107,25 +147,47 @@ export class OnlineClient {
         this.publish({ replayMessage: replayError(result.error) });
     } catch { /* Reconnect obtains the authoritative state; never queue stale timing. */ }
   }
-  async apply(command: Omit<SketchCommand, 'operationId' | 'mapRevision'> & { mapRevision?: number }) {
+  apply(command: Omit<SketchCommand, 'operationId' | 'mapRevision'> & { mapRevision?: number }): Promise<void> {
     const board = this.state.board;
-    if (!board || this.state.status !== 'connected' || this.state.pending) throw new Error('Дождитесь подключения и сохранения предыдущего рисунка.');
+    if (!board || this.state.status !== 'connected')
+      return Promise.reject(new Error('Дождитесь подключения к общей доске.'));
     const request: SketchCommand = { ...command, operationId: createId(), mapRevision: command.mapRevision ?? board.mapRevision };
-    this.publish({ pending: true, message: '' });
-    try {
-      // HTTP and SignalR use the same server command service. HTTP has CSRF and a clear error status.
-      const result = await onlineRequest<SketchResult>('/api/sketch/commands', 'POST', request);
-      if (!result.applied) throw new Error(result.error ?? 'Не удалось сохранить рисунок.');
-      if (result.change) this.receive(result.change);
-    } catch (error) {
-      // Do not replay a potentially stale edit after reconnect; authoritative state resolves lost acknowledgements.
-      const refreshed = await this.refresh().then(() => true).catch(() => false);
-      const message = error instanceof Error ? error.message : 'Ошибка сохранения.';
-      this.publish({ ...(refreshed ? {} : { status: 'offline' as const }), message: `Правка не подтверждена. ${refreshed ? 'Доска обновлена с сервера.' : 'Не удалось получить состояние доски. Подключитесь снова.'} ${message}` });
-      throw error;
-    } finally { this.publish({ pending: false }); }
+    let resolve!: () => void;
+    let reject!: (error: Error) => void;
+    const completion = new Promise<void>((ok, fail) => { resolve = ok; reject = fail; });
+    const timer = setTimeout(() => {
+      const error = new Error('Сервер не подтвердил изменение за 2 секунды.');
+      if (!this.failSketch(request.operationId, error, 'Правка не подтверждена за 2 секунды. Локальное изменение отменено.')) return;
+      void this.refresh().catch(() => this.publish({ status: 'offline', message: 'Не удалось получить состояние доски. Подключитесь снова.' }));
+    }, 2000);
+    this.pendingSketch.set(request.operationId, { request, timer, resolve, reject });
+    // Project the local operation immediately; the server revision stays untouched until confirmation.
+    this.publishBoard({ message: '' });
+    void (async () => {
+      try {
+        const result = await onlineRequest<SketchResult>('/api/sketch/commands', 'POST', request);
+        if (!result.applied) throw new Error(result.error ?? 'Не удалось сохранить изменение.');
+        if (result.change) this.receive(result.change);
+        else if (this.completeSketch(request.operationId)) this.publishBoard();
+      } catch (failure) {
+        const error = failure instanceof Error ? failure : new Error('Ошибка сохранения.');
+        if (this.failSketch(request.operationId, error, `Правка отклонена. Локальное изменение отменено. ${error.message}`))
+          void this.refresh().catch(() => this.publish({ status: 'offline', message: 'Не удалось получить состояние доски. Подключитесь снова.' }));
+      }
+    })();
+    return completion;
   }
-  dispose() { this.disposed = true; if (this.timer) clearInterval(this.timer); this.listeners.clear(); void this.hub.stop(); }
+  dispose() {
+    this.disposed = true;
+    if (this.timer) clearInterval(this.timer);
+    for (const pending of this.pendingSketch.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error('Соединение закрыто.'));
+    }
+    this.pendingSketch.clear();
+    this.listeners.clear();
+    void this.hub.stop();
+  }
 }
 
 function replayError(code: string | null): string {

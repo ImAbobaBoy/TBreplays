@@ -27,11 +27,11 @@ export function useOnlineViewer(engine: ViewerEngine | null, loadMap: (id: strin
     return () => { active = false; };
   }, [engine, mapId]);
   useEffect(() => {
-    if (!engine || ready?.engine !== engine || ready.mapId !== mapId || !online.state.board || online.state.pending) return;
+    if (!engine || ready?.engine !== engine || ready.mapId !== mapId || !online.state.board) return;
     const board = online.state.board;
     engine.syncOnlineStrokes(board.strokes.map(x => x.stroke), epoch.current !== board.mapRevision);
     epoch.current = board.mapRevision;
-  }, [engine, ready, mapId, online.state.board, online.state.pending]);
+  }, [engine, ready, mapId, online.state.board]);
   useEffect(() => {
     engine?.setOnlineDrawingAccess(online.canEdit && ready?.engine === engine && ready?.mapId === mapId);
     if (!online.canEdit) engine?.setManualTanks((online.client.getSnapshot().board?.tanks ?? []).map(x => x.tank));

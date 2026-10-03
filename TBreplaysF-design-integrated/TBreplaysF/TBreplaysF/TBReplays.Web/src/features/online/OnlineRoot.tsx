@@ -35,7 +35,8 @@ function OnlineSession({ user, signOut, children }: { user: OnlineUser; signOut:
 }
 function SessionView({ user, signOut, client, children }: { user: OnlineUser; signOut: () => void; client: OnlineClient; children: ReactNode }) {
   const state = useSyncExternalStore(client.subscribe, client.getSnapshot);
-  return <OnlineContext.Provider value={{ user, signOut, client, state, canEdit: user.role !== 'observer' && state.status === 'connected' && !state.pending }}>
+  const currentUser = state.users.find(item => item.id === user.id) ?? user;
+  return <OnlineContext.Provider value={{ user: currentUser, signOut, client, state, canEdit: currentUser.role !== 'observer' && state.status === 'connected' }}>
     {children}
   </OnlineContext.Provider>;
 }
@@ -83,7 +84,7 @@ export function OnlinePanel() {
   };
   return <section className="panel online-panel">
     <strong>{user.login} · {roleNames[user.role]}</strong>
-    <p role="status">{state.pending ? 'Сохраняю рисунок…' : state.status === 'connected' ? 'Общая доска подключена' : 'Нет синхронизации'}</p>
+    <p role="status">{state.status === 'connected' ? 'Общая доска подключена' : 'Нет синхронизации'}</p>
     {state.message && <p role="status">{state.message}</p>}
     {error && <p role="alert">{error}</p>}
     {state.status === 'offline' && <button onClick={() => void client.start()}>Подключиться</button>}
@@ -97,7 +98,7 @@ export function OnlinePanel() {
   </section>;
 }
 function AccountDialog({ onClose }: { onClose: () => void }) {
-  const { user, signOut } = useOnline();
+  const { user, signOut, state } = useOnline();
   const [users, setUsers] = useState<OnlineUser[]>([]);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -107,6 +108,29 @@ function AccountDialog({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const load = async () => { try { setUsers(await onlineRequest<OnlineUser[]>('/api/users')); } catch (e) { setMessage(e instanceof Error ? e.message : 'Не удалось получить пользователей.'); } };
   useEffect(() => { if (user.role === 'admin') void load(); }, [user.role]);
+  useEffect(() => {
+    if (user.role !== 'admin') return;
+    setUsers(current => current.map(account => {
+      const live = state.users.find(item => item.id === account.id);
+      return live && live.role !== account.role ? { ...account, role: live.role } : account;
+    }));
+  }, [state.users, user.role]);
+  const changeRole = (item: OnlineUser, role: OnlineUser['role']) => {
+    if (role === item.role) return;
+    setMessage('');
+    setUsers(current => current.map(userItem => userItem.id === item.id ? { ...userItem, role } : userItem));
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const confirmation = Promise.race([
+      onlineRequest<OnlineUser>(`/api/users/${item.id}/role`, 'PUT', { role }),
+      new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error('Сервер не подтвердил смену роли за 2 секунды.')), 2000); }),
+    ]);
+    void confirmation.then(updated => {
+      setUsers(current => current.map(userItem => userItem.id === updated.id ? updated : userItem));
+    }).catch(error => {
+      setUsers(current => current.map(userItem => userItem.id === item.id ? item : userItem));
+      setMessage(error instanceof Error ? error.message : 'Не удалось изменить роль.');
+    }).finally(() => { if (timeout) clearTimeout(timeout); });
+  };
   const action = async (work: () => Promise<void>) => {
     setBusy(true); setMessage('');
     try { await work(); } catch (e) { setMessage(e instanceof Error ? e.message : 'Не удалось выполнить действие.'); } finally { setBusy(false); }
@@ -121,7 +145,7 @@ function AccountDialog({ onClose }: { onClose: () => void }) {
     <p role="status">{message}</p>
     {user.role === 'admin' && <><h2>Пользователи</h2><button disabled={busy} onClick={() => void load()}>Обновить список</button>
       <table><thead><tr><th>Логин</th><th>Роль</th><th>Пароль</th></tr></thead><tbody>{users.map(item => <tr key={item.id}>
-        <td>{item.login}</td><td>{item.role === 'admin' ? <span>Администратор</span> : <select aria-label={`Роль ${item.login}`} value={item.role} disabled={busy} onChange={e => { const role = e.target.value; void action(async () => { await onlineRequest(`/api/users/${item.id}/role`, 'PUT', { role }); if (item.id === user.id) signOut(); else await load(); }); }}>
+        <td>{item.login}</td><td>{item.role === 'admin' ? <span>Администратор</span> : <select aria-label={`Роль ${item.login}`} value={item.role} disabled={busy} onChange={e => changeRole(item, e.target.value as OnlineUser['role'])}>
           <option value="observer">Наблюдатель</option><option value="editor">Редактор</option>
         </select>}</td><td><button disabled={busy} onClick={() => { setTarget(item); setResetPassword(''); }}>Сбросить пароль</button></td>
       </tr>)}</tbody></table>

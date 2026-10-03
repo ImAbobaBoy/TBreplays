@@ -51,6 +51,6 @@ export function useOnlineTanks(engine: ViewerEngine | null, setTanks: (tanks: Ma
     });
     return () => { engine.setTankOnlineHandlers(null); edit.current = null; };
   }, [engine]);
-  useEffect(() => { if (!online.state.pending) restore(); }, [online.state.board?.revision, online.state.pending, online.state.status, engine]);
+  useEffect(() => { restore(); }, [online.state.board, online.state.status, engine]);
   return { commit, remove, clear };
 }

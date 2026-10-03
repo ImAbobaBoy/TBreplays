@@ -128,6 +128,17 @@ public sealed class ReplaySyncService(OnlineFiles files, OnlineSecurity security
         }
         finally { files.AccountGate.Release(); }
     }
+    public async Task RoleChangedAsync(string userId, bool canEdit)
+    {
+        if (canEdit) return;
+        await _gate.WaitAsync();
+        try
+        {
+            if (_state.LeaderId == userId && _state.LeaderConnectionId is not null)
+                await PauseLeader("leaderRoleChanged");
+        }
+        finally { _gate.Release(); }
+    }
     public async Task DisconnectedAsync(string connectionId)
     {
         await _gate.WaitAsync();

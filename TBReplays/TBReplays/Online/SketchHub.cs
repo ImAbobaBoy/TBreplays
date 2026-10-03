@@ -52,9 +52,9 @@ public sealed class SketchHub(SketchService sketches, OnlineSecurity security,
 
     public async Task<ReplaySyncState> GetReplay()
     {
-        await RequireSession();
-        return await replays.GetAsync(Context.UserIdentifier!, Context.ConnectionId,
-            Context.User!.IsInRole(OnlineRoles.Admin) || Context.User.IsInRole(OnlineRoles.Editor));
+        var user = await RequireSession();
+        return await replays.GetAsync(user.Id, Context.ConnectionId,
+            user.Role is OnlineRoles.Admin or OnlineRoles.Editor);
     }
     public async Task<ReplaySyncResult> ReplayApply(ReplaySyncCommand command)
     {
@@ -68,9 +68,10 @@ public sealed class SketchHub(SketchService sketches, OnlineSecurity security,
         if (result.Error == "unauthorized") Context.Abort();
         return result;
     }
-    private async Task RequireSession()
+    private async Task<OnlineUser> RequireSession()
     {
-        if (await security.GetCurrentAsync(Context.User, Context.ConnectionAborted) is not null) return;
+        var user = await security.GetCurrentAsync(Context.User, Context.ConnectionAborted);
+        if (user is not null) return user;
         Context.Abort();
         throw new HubException("unauthorized");
     }

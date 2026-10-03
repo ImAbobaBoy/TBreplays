@@ -8,6 +8,11 @@ public sealed class OnlineConnections
     private readonly ConcurrentDictionary<string, (UserDto User, HubCallerContext Context)> _connections = new();
     public void Add(UserDto user, HubCallerContext context) => _connections[context.ConnectionId] = (user, context);
     public void Remove(string id) => _connections.TryRemove(id, out _);
+    public void Update(UserDto user)
+    {
+        foreach (var item in _connections.Where(x => x.Value.User.Id == user.Id).ToArray())
+            _connections[item.Key] = (user, item.Value.Context);
+    }
     public IReadOnlyList<UserDto> List() => _connections.Values.Select(x => x.User)
         .DistinctBy(x => x.Id).OrderBy(x => x.Login).ToArray();
     public void Revoke(string userId)

@@ -1,13 +1,15 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using TBReplays.Online;
 
 namespace TBReplays.Controllers;
 
 [ApiController, Route("api/users"), Authorize(Roles = OnlineRoles.Admin)]
 public sealed class OnlineUsersController(UserManager<OnlineUser> users, OnlineUserStore store,
-    OnlineFiles files, OnlineSecurity security, OnlineConnections connections) : ControllerBase
+    OnlineFiles files, OnlineSecurity security, OnlineConnections connections, ReplaySyncService replays,
+    IHubContext<SketchHub> hub, ILogger<OnlineUsersController> logger) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await store.ListAsync(ct));
@@ -16,6 +18,7 @@ public sealed class OnlineUsersController(UserManager<OnlineUser> users, OnlineU
     public async Task<IActionResult> SetRole(string id, RoleRequest request)
     {
         if (request.Role is not (OnlineRoles.Editor or OnlineRoles.Observer)) return BadRequest(new { error = "Можно назначить только editor или observer." });
+        UserDto updated;
         await files.AccountGate.WaitAsync(HttpContext.RequestAborted);
         try
         {
@@ -25,13 +28,19 @@ public sealed class OnlineUsersController(UserManager<OnlineUser> users, OnlineU
             if (user.Role == OnlineRoles.Admin) return Conflict(new { error = "Роль администратора менять нельзя." });
             if (user.Role == request.Role) return Ok(UserDto.From(user));
             user.Role = request.Role;
-            // Role and stamp are persisted atomically by the store.
-            var result = await users.UpdateSecurityStampAsync(user);
+            // A role change must not invalidate the login cookie. Authorization reads the current role from the store.
+            var result = await users.UpdateAsync(user);
             if (!result.Succeeded) return Conflict(new { errors = result.Errors });
-            connections.Revoke(user.Id);
-            return Ok(UserDto.From(user));
+            updated = UserDto.From(user);
         }
         finally { files.AccountGate.Release(); }
+
+        connections.Update(updated);
+        await replays.RoleChangedAsync(updated.Id, updated.Role is OnlineRoles.Admin or OnlineRoles.Editor);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try { await hub.Clients.All.SendAsync("UsersChanged", connections.List(), timeout.Token); }
+        catch (Exception error) { logger.LogWarning(error, "Role for user {UserId} persisted; UsersChanged broadcast failed", updated.Id); }
+        return Ok(updated);
     }
 
     [HttpPost("{id}/reset-password")]

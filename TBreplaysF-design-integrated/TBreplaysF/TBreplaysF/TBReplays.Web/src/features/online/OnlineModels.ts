@@ -37,6 +37,29 @@ export function applySketchChange(state: SketchState | null, change: SketchChang
     mapId: change.kind === 'setMap' ? change.mapId ?? null : state.mapId, strokes, tanks };
 }
 
+export function applyOptimisticSketchCommand(state: SketchState, command: SketchCommand): SketchState {
+  let strokes = state.strokes;
+  let tanks = state.tanks ?? [];
+  let mapId = state.mapId;
+  if (command.kind === 'clear' || command.kind === 'setMap') strokes = [];
+  if (command.kind === 'remove') strokes = strokes.filter(x => x.stroke.id !== command.strokeId);
+  if (command.kind === 'upsert' && command.stroke) {
+    const previous = strokes.find(x => x.stroke.id === command.stroke!.id);
+    strokes = [...strokes.filter(x => x.stroke.id !== command.stroke!.id),
+      { stroke: command.stroke, revision: previous?.revision ?? 0, authorId: previous?.authorId ?? 'local' }];
+  }
+  if (command.kind === 'clearTanks' || command.kind === 'setMap') tanks = [];
+  if (command.kind === 'removeTank') tanks = tanks.filter(x => x.tank.id !== command.tankId);
+  if (command.kind === 'upsertTank' && command.tank) {
+    const previous = tanks.find(x => x.tank.id === command.tank!.id);
+    tanks = [...tanks.filter(x => x.tank.id !== command.tank!.id),
+      { tank: command.tank, revision: previous?.revision ?? 0, authorId: previous?.authorId ?? 'local' }];
+  }
+  if (command.kind === 'setMap') mapId = command.mapId ?? null;
+  // Never invent server revisions. Pending operations are only a visual projection.
+  return { ...state, mapId, strokes, tanks };
+}
+
 export type ReplaySyncState = {
   serverId: string; sequence: number; revision: number; sessionId: string;
   replayId: string | null; mapId: string | null; leaderId: string | null; leaderConnectionId: string | null;

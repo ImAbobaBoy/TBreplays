@@ -7,7 +7,7 @@ async function moduleFromSource(path) {
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ES2022, target: ts.ScriptTarget.ES2022 } }).outputText;
   return import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
 }
-const { applySketchChange } = await moduleFromSource('../src/features/online/OnlineModels.ts');
+const { applyOptimisticSketchCommand, applySketchChange } = await moduleFromSource('../src/features/online/OnlineModels.ts');
 const { authorizedFetch, resetCsrf, sessionEvents } = await moduleFromSource('../src/api/OnlineHttp.ts');
 const empty = { revision: 0, mapId: 'map', mapRevision: 1, strokes: [] };
 const stroke = { id: 'one', color: '#22c55e', width: 2, style: 'solid', arrowMode: 'none', points: [{ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 1 }] };
@@ -137,4 +137,20 @@ test('periodic flag correction and natural finish never seek inside tolerance', 
     { time: 73, speed: 1, playing: false });
   assert.equal(replayCorrection({ ...remote, time: 120 }, { time: 118, speed: 1, isPlaying: true }, 10000, false, false), null);
   assert.equal(replayCorrection({ ...remote, time: 118, isPlaying: true }, { time: 120, speed: 1, isPlaying: false }, 10000, false, false), null);
+});
+
+
+test('optimistic sketch projection changes the picture without inventing server revisions', () => {
+  const board = { ...empty, tanks: [] };
+  const request = { operationId: 'local', kind: 'upsert', expectedRevision: 0, mapRevision: 1, stroke };
+  const optimistic = applyOptimisticSketchCommand(board, request);
+  assert.equal(optimistic.revision, board.revision);
+  assert.equal(optimistic.mapRevision, board.mapRevision);
+  assert.equal(optimistic.strokes.length, 1);
+  assert.equal(board.strokes.length, 0);
+  const mapped = applyOptimisticSketchCommand(optimistic, { operationId: 'map', kind: 'setMap', expectedRevision: 0, mapRevision: 1, mapId: 'next' });
+  assert.equal(mapped.mapId, 'next');
+  assert.equal(mapped.strokes.length, 0);
+  assert.equal(mapped.tanks.length, 0);
+  assert.equal(mapped.revision, board.revision);
 });
