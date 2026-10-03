@@ -11,37 +11,45 @@ namespace TBReplays.Controllers;
 public sealed class MapsController : ControllerBase
 {
     private readonly MapImportService _mapImportService;
+    private readonly MapCatalogService _catalog;
+    private readonly MapImportWorker _worker;
 
-    public MapsController(MapImportService mapImportService)
+    public MapsController(MapImportService mapImportService, MapCatalogService catalog, MapImportWorker worker)
     {
         _mapImportService = mapImportService;
+        _catalog = catalog;
+        _worker = worker;
+    }
+
+    [HttpGet]
+    public Task<MapCatalogEntry[]> List(CancellationToken cancellationToken) => _catalog.ListAsync(cancellationToken);
+
+    [Authorize(Roles = OnlineRoles.Admin)]
+    [HttpPost("import-all")]
+    public ActionResult<MapImportJob> ImportAll([FromQuery] bool force = false)
+    {
+        try
+        {
+            var job = _worker.Start(force);
+            return Accepted($"/api/maps/import-jobs/{job.JobId}", job);
+        }
+        catch (InvalidOperationException e) { return Conflict(new { error = e.Message }); }
+        catch (IOException e) { return BadRequest(new { error = e.Message }); }
     }
 
     [Authorize(Roles = OnlineRoles.Admin)]
-    [HttpPost("import")]
-    [Consumes("multipart/form-data")]
-    [RequestSizeLimit(1024L * 1024L * 1024L)]
-    public async Task<ActionResult<MapImportResultDto>> Import(
-        IFormFile archive,
-        CancellationToken cancellationToken)
+    [HttpGet("import-jobs/{jobId}")]
+    public ActionResult<MapImportJob> ImportStatus(string jobId)
     {
-        var result = await _mapImportService.ImportAsync(archive, cancellationToken);
-
-        return Ok(result);
+        var job = _worker.Get(jobId);
+        return job is null ? NotFound() : Ok(job);
     }
 
-    [Authorize(Roles = OnlineRoles.Admin)]
-    [HttpPost("import-local")]
-    public async Task<ActionResult<MapImportResultDto>> ImportLocal(
-        [FromQuery] string? archiveFileName,
-        CancellationToken cancellationToken)
-    {
-        var result = await _mapImportService.ImportFromLocalArchiveAsync(
-            archiveFileName,
-            cancellationToken);
+    [HttpGet("{mapId}/surface")]
+    public Task<object> Surface(string mapId, CancellationToken cancellationToken) => _mapImportService.GetSurfaceAsync(mapId, cancellationToken);
 
-        return Ok(result);
-    }
+    [HttpGet("{mapId}/textures/{fileName}")]
+    public IActionResult Texture(string mapId, string fileName) => PhysicalFile(_mapImportService.GetTexturePath(mapId, fileName), "image/vnd-ms.dds", enableRangeProcessing: true);
 
     [HttpGet("{mapId}/manifest")]
     public async Task<ActionResult<MapManifestDto>> GetManifest(

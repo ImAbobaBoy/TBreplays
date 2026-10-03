@@ -13,6 +13,8 @@
 
     <ItemGroup>
       <Folder Include="ReplayFiles\" />
+      <Content Update="appsettings.Local.json" CopyToPublishDirectory="Never" />
+      <Content Remove="Maps_game/**;Maps/**;MapFiles/**;MapsFiles/**;MapData/**;Data/**" />
     </ItemGroup>
 
 </Project>

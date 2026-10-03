@@ -32,7 +32,7 @@ try
     var userId = viewerUser["id"]!.GetValue<string>();
     await Expect(viewer.GetAsync("/api/users"), 403);
     await Expect(viewer.PostAsJsonAsync("/api/strategy-slides", new { mapId = "test", title = "test" }), 403);
-    await Expect(viewer.PostAsJsonAsync("/api/maps/import-local", new { }), 403);
+    await Expect(viewer.PostAsJsonAsync("/api/maps/import-all", new { }), 403);
     await Expect(viewer.PostAsJsonAsync("/api/sketch/commands", Command("clear", 0, 0)), 403);
     await Expect(admin.PutAsJsonAsync($"/api/users/{adminUser["id"]!.GetValue<string>()}/role", new { role = "observer" }), 409);
     await Expect(admin.PutAsJsonAsync($"/api/users/{userId}/role", new { role = "admin" }), 400);

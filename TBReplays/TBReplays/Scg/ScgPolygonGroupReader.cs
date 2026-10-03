@@ -27,6 +27,11 @@ public sealed class ScgPolygonGroupReader
 
     public IReadOnlyDictionary<ulong, ScgPolygonGroup> Read(byte[] bytes)
     {
+        return new ScgPolygonGroupReader().ReadCore(bytes);
+    }
+
+    private IReadOnlyDictionary<ulong, ScgPolygonGroup> ReadCore(byte[] bytes)
+    {
         _bytes = bytes;
         _offset = 0;
 
@@ -56,12 +61,13 @@ public sealed class ScgPolygonGroupReader
 
             if (!TryCreatePolygonGroup(archive, out var polygonGroup))
             {
-                continue;
+                throw new InvalidDataException($"Некорректная polygon group {i}.");
             }
 
-            groups[polygonGroup.Id] = polygonGroup;
+            if (!groups.TryAdd(polygonGroup.Id, polygonGroup)) throw new InvalidDataException($"Повтор polygonGroup id {polygonGroup.Id}.");
         }
 
+        if (_offset != _bytes.Length) throw new InvalidDataException("SCG содержит лишние байты.");
         return groups;
     }
 
@@ -174,7 +180,10 @@ public sealed class ScgPolygonGroupReader
             return false;
         }
 
-        if (indices.Length < indexCount * sizeof(ushort))
+        var indexFormat = TryGetInt32(archive, "indexFormat", out var format) ? format : 0;
+        var primitiveType = TryGetInt32(archive, "rhi_primitiveType", out var primitive) ? primitive : 1;
+        var packing = TryGetInt32(archive, "packing", out var pack) ? pack : 0;
+        if (indexFormat is not (0 or 1) || indices.LongLength != (long)indexCount * (indexFormat == 0 ? 2 : 4))
         {
             return false;
         }
@@ -194,7 +203,10 @@ public sealed class ScgPolygonGroupReader
             VertexFormat: vertexFormat,
             VertexStride: vertexStride,
             Vertices: vertices,
-            Indices: indices);
+            Indices: indices,
+            IndexFormat: indexFormat,
+            PrimitiveType: primitiveType,
+            Packing: packing);
 
         return true;
     }

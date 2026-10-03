@@ -7,4 +7,7 @@ public sealed record ScgPolygonGroup(
     int VertexFormat,
     int VertexStride,
     byte[] Vertices,
-    byte[] Indices);
+    byte[] Indices,
+    int IndexFormat = 0,
+    int PrimitiveType = 1,
+    int Packing = 0);

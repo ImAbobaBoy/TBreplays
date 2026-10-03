@@ -298,13 +298,15 @@ export function App() {
       return;
     }
 
+    const engine = viewerEngineRef.current;
     try {
       setState(current => ({ ...current, mapLoaded: false, status: 'Загружаю карту...' }));
 
-      await viewerEngineRef.current.loadMap(mapId);
+      await engine.loadMap(mapId);
+      if (viewerEngineRef.current !== engine) return;
 
-      const calibration = viewerEngineRef.current.getCurrentCalibration();
-      const playback = viewerEngineRef.current.getReplayPlaybackState();
+      const calibration = engine.getCurrentCalibration();
+      const playback = engine.getReplayPlaybackState();
 
       setState((current) => ({
         ...current,
@@ -320,6 +322,7 @@ export function App() {
         status: `Карта загружена: ${mapId}`,
       }));
     } catch (error) {
+      if (viewerEngineRef.current !== engine) return;
       console.error(error);
 
       setState((current) => ({

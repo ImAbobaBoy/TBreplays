@@ -9,6 +9,7 @@ import type {
 import { mapTerrainSampleToThree } from '../MapCalibrationTransforms';
 
 export class TerrainLayer {
+  private generation = 0;
   private readonly root: THREE.Group;
   private readonly api: TBReplaysApi;
 
@@ -47,6 +48,7 @@ export class TerrainLayer {
   ): Promise<void> {
     this.clear();
 
+    const generation = this.generation;
     const concurrency = 8;
     let currentIndex = 0;
 
@@ -57,6 +59,7 @@ export class TerrainLayer {
 
         const chunkInfo = manifest.chunks[index];
         const buffer = await this.api.getTerrainChunk(chunkInfo.url);
+        if (generation !== this.generation) return;
         const chunk = this.parseTerrainChunk(buffer);
         const mesh = this.createTerrainChunkMesh(
           manifest,
@@ -72,6 +75,7 @@ export class TerrainLayer {
   }
 
   public clear(): void {
+    this.generation++;
     for (const child of [...this.root.children]) {
       this.root.remove(child);
       this.disposeObject(child);
@@ -152,11 +156,11 @@ export class TerrainLayer {
         const sampleX = chunk.startSampleX + x;
         const sampleY = chunk.startSampleY + y;
 
-        const normalizedX = sampleX / (manifest.heightmapSize - 1);
-        const normalizedY = sampleY / (manifest.heightmapSize - 1);
+        const normalizedX = sampleX / (manifest.schemaVersion && manifest.schemaVersion >= 2 ? manifest.heightmapSize : manifest.heightmapSize - 1);
+        const normalizedY = sampleY / (manifest.schemaVersion && manifest.schemaVersion >= 2 ? manifest.heightmapSize : manifest.heightmapSize - 1);
 
         const rawHeight = chunk.heights[vertexIndex];
-        const horizontalHalfExtent = calibration?.world.horizontalHalfExtent;
+        const horizontalHalfExtent = manifest.schemaVersion && manifest.schemaVersion >= 2 ? undefined : calibration?.world.horizontalHalfExtent;
 
         const sourceX = horizontalHalfExtent
           ? -horizontalHalfExtent + normalizedX * horizontalHalfExtent * 2

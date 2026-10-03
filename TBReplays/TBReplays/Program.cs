@@ -10,6 +10,9 @@ using TBReplays.Scg;
 using TBReplays.Terrain;
 
 var builder = WebApplication.CreateBuilder(args);
+// Machine-specific paths stay out of shared configuration and published builds.
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
+    .AddEnvironmentVariables().AddCommandLine(args);
 
 builder.Services.AddControllers();
 builder.AddOnline();
@@ -54,6 +57,11 @@ builder.Services.AddSingleton<ScgPolygonGroupReader>();
 builder.Services.AddSingleton<ScgMapMeshExportService>();
 
 builder.Services.AddSingleton<MapImportService>();
+builder.Services.Configure<MapImportOptions>(builder.Configuration.GetSection("MapImport"));
+builder.Services.AddSingleton<MapCatalogService>();
+builder.Services.AddSingleton<MapDirectoryImporter>();
+builder.Services.AddSingleton<MapImportWorker>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<MapImportWorker>());
 
 builder.Services.AddSingleton<ReplayParseService>();
 builder.Services.AddSingleton<ReplayMapBindingService>();

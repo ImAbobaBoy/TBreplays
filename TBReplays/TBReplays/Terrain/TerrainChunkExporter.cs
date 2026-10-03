@@ -17,7 +17,8 @@ public sealed class TerrainChunkExporter
         TerrainBoundsDto bounds,
         string outputDirectory,
         int chunkCellSize,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int schemaVersion = 1)
     {
         if (chunkCellSize <= 0)
         {
@@ -81,7 +82,8 @@ public sealed class TerrainChunkExporter
             ChunksX: chunksX,
             ChunksY: chunksY,
             Bounds: bounds,
-            Chunks: chunks);
+            Chunks: chunks,
+            SchemaVersion: schemaVersion);
 
         var manifestPath = Path.Combine(outputDirectory, "manifest.json");
         var manifestJson = JsonSerializer.Serialize(manifest, JsonOptions);

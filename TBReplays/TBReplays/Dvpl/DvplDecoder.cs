@@ -10,6 +10,7 @@ public sealed class DvplDecoder
     private const uint NoCompression = 0;
     private const uint Lz4 = 1;
     private const uint Lz4Hc = 2;
+    private static readonly uint[] CrcTable = CreateCrcTable();
 
     public byte[] DecodeFile(string path)
     {
@@ -34,6 +35,7 @@ public sealed class DvplDecoder
 
         var unpackedSize = BinaryPrimitives.ReadUInt32LittleEndian(footer[..4]);
         var compressedSize = BinaryPrimitives.ReadUInt32LittleEndian(footer.Slice(4, 4));
+        var crc = BinaryPrimitives.ReadUInt32LittleEndian(footer.Slice(8, 4));
         var compressionType = BinaryPrimitives.ReadUInt32LittleEndian(footer.Slice(12, 4));
         var magic = footer.Slice(16, 4);
 
@@ -45,12 +47,16 @@ public sealed class DvplDecoder
         var compressedSizeInt = checked((int)compressedSize);
         var unpackedSizeInt = checked((int)unpackedSize);
 
-        if (compressedSizeInt > dvpl.Length - FooterSize)
+        if (compressedSizeInt != dvpl.Length - FooterSize)
         {
             throw new InvalidDataException("Некорректный compressed size в DVPL.");
         }
 
         var payload = dvpl[..compressedSizeInt];
+        if (ComputeCrc32(payload) != crc)
+        {
+            throw new InvalidDataException("DVPL CRC32 не совпадает с payload.");
+        }
         var output = new byte[unpackedSizeInt];
 
         switch (compressionType)
@@ -72,6 +78,25 @@ public sealed class DvplDecoder
             default:
                 throw new NotSupportedException($"Неподдерживаемый DVPL compression type: {compressionType}.");
         }
+    }
+
+    public static uint ComputeCrc32(ReadOnlySpan<byte> data)
+    {
+        var crc = uint.MaxValue;
+        foreach (var value in data) crc = (crc >> 8) ^ CrcTable[(crc ^ value) & 255];
+        return ~crc;
+    }
+
+    private static uint[] CreateCrcTable()
+    {
+        var table = new uint[256];
+        for (uint i = 0; i < table.Length; i++)
+        {
+            var value = i;
+            for (var bit = 0; bit < 8; bit++) value = (value >> 1) ^ ((value & 1) == 0 ? 0 : 0xedb88320u);
+            table[i] = value;
+        }
+        return table;
     }
 
     private static void DecodeLz4Block(ReadOnlySpan<byte> source, Span<byte> destination)

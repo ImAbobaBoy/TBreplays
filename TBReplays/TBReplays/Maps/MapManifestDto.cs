@@ -10,4 +10,5 @@ public sealed record MapManifestDto(
     int ChunksX,
     int ChunksY,
     TerrainBoundsDto Bounds,
-    IReadOnlyList<TerrainChunkInfoDto> Chunks);
+    IReadOnlyList<TerrainChunkInfoDto> Chunks,
+    int SchemaVersion = 1);

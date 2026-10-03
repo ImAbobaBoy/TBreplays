@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 
 import { OnlineRoot } from './features/online/OnlineRoot';
+import { MapCatalogProvider } from './features/maps/MapCatalog';
 import { App } from './app/App';
 
 import './styles/app.css';
@@ -17,6 +18,6 @@ if (!root) {
 
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
-    <OnlineRoot><App /></OnlineRoot>
+    <OnlineRoot><MapCatalogProvider><App /></MapCatalogProvider></OnlineRoot>
   </React.StrictMode>,
 );

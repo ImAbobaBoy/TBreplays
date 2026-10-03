@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Numerics;
 using System.Text.Json;
 using TBReplays.Dvpl;
@@ -9,752 +9,179 @@ namespace TBReplays.Scg;
 
 public sealed class ScgMapMeshExportService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true,
-        WriteIndented = false
-    };
+    private readonly DvplDecoder _decoder;
+    private readonly Sc2SceneReader _scenes;
+    private readonly ScgPolygonGroupReader _geometry;
+    public ScgMapMeshExportService(DvplDecoder decoder, Sc2SceneReader scenes, ScgPolygonGroupReader geometry)
+    { _decoder = decoder; _scenes = scenes; _geometry = geometry; }
 
-    private readonly DvplDecoder _dvplDecoder;
-    private readonly Sc2SceneReader _sc2SceneReader;
-    private readonly ScgPolygonGroupReader _polygonGroupReader;
-
-    private sealed class ScgExportSkipReport
+    public Task<MapObjectMeshManifestDto> ExportAsync(string mapId, string importedDirectory, string processedDirectory, CancellationToken ct)
     {
-        public int ScenesWithoutHierarchy { get; set; }
-        public int TotalEntities { get; set; }
-        public int NoTransform { get; set; }
-        public int NoRender { get; set; }
-        public int NoDatasource { get; set; }
-        public int DatasourceNotFound { get; set; }
-        public int Filtered { get; set; }
-        public int AppendedEntities { get; set; }
-        public int AppendedDatasources { get; set; }
+        var files = Directory.EnumerateFiles(importedDirectory, "*.sc2*", SearchOption.AllDirectories)
+            .Where(p => p.EndsWith(".sc2") || p.EndsWith(".sc2.dvpl")).ToArray();
+        if (files.Length != 1) throw new InvalidDataException("Для экспорта требуется одна корневая SC2 сцена.");
+        var scene = new MapScene(_scenes.Read(_decoder.DecodeFile(files[0])));
+        var stem = files[0].Replace(".sc2.dvpl", "").Replace(".sc2", "");
+        var scg = File.Exists(stem + ".scg.dvpl") ? stem + ".scg.dvpl" : stem + ".scg";
+        return ExportSceneAsync(mapId, scene, new MapResourceResolver(Path.GetDirectoryName(files[0])!, importedDirectory, _decoder), scg, processedDirectory, ct);
     }
 
-    public ScgMapMeshExportService(
-        DvplDecoder dvplDecoder,
-        Sc2SceneReader sc2SceneReader,
-        ScgPolygonGroupReader polygonGroupReader)
-    {
-        _dvplDecoder = dvplDecoder;
-        _sc2SceneReader = sc2SceneReader;
-        _polygonGroupReader = polygonGroupReader;
-    }
-
-    public async Task<MapObjectMeshManifestDto> ExportAsync(
-        string mapId,
-        string importedDirectory,
-        string processedDirectory,
-        CancellationToken cancellationToken)
+    public async Task<MapObjectMeshManifestDto> ExportSceneAsync(string mapName, MapScene scene, MapResourceResolver resources,
+        string scgPath, string processedDirectory, CancellationToken ct)
     {
         Directory.CreateDirectory(processedDirectory);
-
-        var meshPath = Path.Combine(processedDirectory, "objects_mesh.bin");
-        var manifestPath = Path.Combine(processedDirectory, "objects_mesh_manifest.json");
-
-        var sc2Paths = FindFiles(importedDirectory, "*.sc2.dvpl")
-            .Concat(FindFiles(importedDirectory, "*.sc2"))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(x => x)
-            .ToArray();
-
-        var scgPaths = FindFiles(importedDirectory, "*.scg.dvpl")
-            .Concat(FindFiles(importedDirectory, "*.scg"))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(x => x)
-            .ToArray();
-
-        if (sc2Paths.Length == 0 || scgPaths.Length == 0)
+        var groups = _geometry.Read(_decoder.DecodeFile(scgPath));
+        var positions = new List<float>(); var normals = new List<float>(); var uvs = new List<float>(); var indices = new List<uint>();
+        var draws = new List<(int Start, int Count, int Material)>();
+        var materials = new List<MapMeshMaterialDto>(); var materialIndices = new Dictionary<ulong, int>();
+        var instances = new List<MapMeshInstanceDto>(); var warnings = new HashSet<string>(StringComparer.Ordinal);
+        var objects = new List<MapObjectDto>();
+        var repairedNormals = new Dictionary<ulong, Vector3[]>();
+        foreach (var entity in scene.Entities)
         {
-            WriteMeshBinary(meshPath, [], []);
-
-            var emptyManifest = new MapObjectMeshManifestDto(
-                MapId: mapId,
-                VertexCount: 0,
-                IndexCount: 0,
-                Url: $"/api/maps/{mapId}/object-mesh.bin");
-
-            await WriteManifestAsync(manifestPath, emptyManifest, cancellationToken);
-
-            return emptyManifest;
+            ct.ThrowIfCancellationRequested();
+            var name = entity.GetValueOrDefault("name") as string ?? "object";
+            var render = MapScene.RenderObject(entity);
+            if (render is null || ReferenceEquals(render, scene.Landscape)) continue;
+            var renderType = render.GetValueOrDefault("##name") as string ?? "";
+            if (renderType.Contains("Skinned", StringComparison.OrdinalIgnoreCase))
+            { warnings.Add($"{name}: SkinnedMesh требует skinning; пропущен."); continue; }
+            var transform = MapScene.Component(entity, "TransformComponent") ?? throw new InvalidDataException($"{name}: нет transform.");
+            var p = ReadVector(transform, "tc.worldTranslation", 3); var s = ReadVector(transform, "tc.worldScale", 3); var q = ReadVector(transform, "tc.worldRotation", 4);
+            var position = new Vector3(p[0], p[1], p[2]); var scale = new Vector3(s[0], s[1], s[2]);
+            var rotation = new Quaternion(q[0], q[1], q[2], q[3]);
+            if (rotation.LengthSquared() < 1e-10f || MathF.Abs(scale.X * scale.Y * scale.Z) < 1e-12f)
+            { warnings.Add($"{name}: вырожденный transform; пропущен."); continue; }
+            rotation = Quaternion.Normalize(rotation);
+            var start = indices.Count; var usedBatches = 0;
+            var boundsMin = new Vector3(float.PositiveInfinity); var boundsMax = new Vector3(float.NegativeInfinity);
+            foreach (var (_, batch) in MapScene.Batches(render))
+            {
+                var id = MapScene.Id(batch.GetValueOrDefault("rb.datasource"));
+                if (!groups.TryGetValue(id, out var group)) throw new InvalidDataException($"{name}: datasource {id} отсутствует в корневом SCG.");
+                if (group.PrimitiveType != 1)
+                {
+                    if (name.StartsWith("MapBorder", StringComparison.OrdinalIgnoreCase))
+                    { warnings.Add($"{name}: служебная граница, primitiveType={group.PrimitiveType}; исключена из triangle mesh."); continue; }
+                    throw new NotSupportedException($"{name}: primitiveType={group.PrimitiveType} требует преобразования топологии.");
+                }
+                if (group.Packing != 0 || (group.VertexFormat & 1) == 0 || group.IndexCount % 3 != 0)
+                    throw new InvalidDataException($"{name}: неподдерживаемый vertex layout или некорректный triangle-list.");
+                var materialId = MapScene.Id(batch.GetValueOrDefault("rb.nmatname"));
+                var material = scene.Material(materialId);
+                if ((material.GetValueOrDefault("fxName") as string ?? "").Contains("sky", StringComparison.OrdinalIgnoreCase))
+                { warnings.Add($"{name}: sky material исключён из объектов."); continue; }
+                if (!materialIndices.TryGetValue(materialId, out var materialIndex))
+                {
+                    materialIndex = materials.Count;
+                    string? textureUrl = null;
+                    var textures = material.GetValueOrDefault("textures") as Dictionary<string, object?>;
+                    var albedo = textures?.GetValueOrDefault("albedo") as string ?? textures?.GetValueOrDefault("baseColor") as string;
+                    if (albedo is not null)
+                    {
+                        try { textureUrl = $"/api/maps/{mapName}/textures/{resources.ExportTexture(albedo, processedDirectory)}"; }
+                        catch (Exception e) when (e is IOException or NotSupportedException)
+                        { warnings.Add($"{name}: material {materialId}, texture {albedo}: {e.Message}"); }
+                    }
+                    materials.Add(new(materialIndex, material.GetValueOrDefault("materialName") as string ?? materialId.ToString(), textureUrl));
+                    materialIndices.Add(materialId, materialIndex);
+                }
+                var vertexBase = checked((uint)(positions.Count / 3));
+                var hasNormal = (group.VertexFormat & 2) != 0;
+                var uvOffset = 12 + (hasNormal ? 12 : 0) + ((group.VertexFormat & 4) != 0 ? 4 : 0);
+                var hasUv = (group.VertexFormat & 8) != 0;
+                if (group.VertexStride < uvOffset + (hasUv ? 8 : 0)) throw new InvalidDataException($"{name}: vertex stride не соответствует формату.");
+                for (int i = 0; i < group.VertexCount; i++)
+                {
+                    var offset = i * group.VertexStride;
+                    float F(int at) => BinaryPrimitives.ReadSingleLittleEndian(group.Vertices.AsSpan(offset + at, 4));
+                    var local = new Vector3(F(0), F(4), F(8));
+                    boundsMin = Vector3.Min(boundsMin, local); boundsMax = Vector3.Max(boundsMax, local);
+                    var world = ToThree(Vector3.Transform(local * scale, rotation) + position);
+                    if (!float.IsFinite(world.X) || !float.IsFinite(world.Y) || !float.IsFinite(world.Z)) throw new InvalidDataException($"{name}: non-finite vertex.");
+                    positions.AddRange([world.X, world.Y, world.Z]);
+                    var localNormal = hasNormal ? new Vector3(F(12), F(16), F(20)) : Vector3.Zero;
+                    if (!float.IsFinite(localNormal.LengthSquared()) || localNormal.LengthSquared() < 1e-12f)
+                    {
+                        if (!repairedNormals.TryGetValue(group.Id, out var generated))
+                            repairedNormals[group.Id] = generated = GenerateNormals(group);
+                        localNormal = generated[i];
+                        warnings.Add($"SCG group {group.Id}: отсутствующие или повреждённые нормали восстановлены по треугольникам.");
+                    }
+                    var normal = Vector3.Transform(localNormal / scale, rotation);
+                    normal = ToThree(normal.LengthSquared() > 1e-12f ? Vector3.Normalize(normal) : Vector3.UnitZ);
+                    normals.AddRange([normal.X, normal.Y, normal.Z]);
+                    float u = hasUv ? F(uvOffset) : 0, v = hasUv ? F(uvOffset + 4) : 0;
+                    if (!float.IsFinite(u) || !float.IsFinite(v)) throw new InvalidDataException($"{name}: non-finite UV.");
+                    uvs.AddRange([u, v]);
+                }
+                uint Index(int i)
+                {
+                    var value = group.IndexFormat == 0 ? BinaryPrimitives.ReadUInt16LittleEndian(group.Indices.AsSpan(i * 2)) : BinaryPrimitives.ReadUInt32LittleEndian(group.Indices.AsSpan(i * 4));
+                    if (value >= group.VertexCount) throw new InvalidDataException($"{name}: index {value} вне vertex buffer.");
+                    return vertexBase + value;
+                }
+                var drawStart = indices.Count;
+                for (int i = 0; i < group.IndexCount; i += 3)
+                {
+                    indices.Add(Index(i));
+                    if (scale.X * scale.Y * scale.Z < 0) { indices.Add(Index(i + 2)); indices.Add(Index(i + 1)); }
+                    else { indices.Add(Index(i + 1)); indices.Add(Index(i + 2)); }
+                }
+                draws.Add((drawStart, group.IndexCount, materialIndex)); usedBatches++;
+            }
+            if (indices.Count == start) continue;
+            var entityId = checked((int)MapScene.Id(entity.GetValueOrDefault("id")));
+            instances.Add(new(entityId, name, start, indices.Count - start));
+            var size = boundsMax - boundsMin; var center = (boundsMin + boundsMax) / 2;
+            objects.Add(new(entityId, name, "render", V(position), new(rotation.X, rotation.Y, rotation.Z, rotation.W), V(scale), V(boundsMin), V(boundsMax), V(center), V(size), usedBatches));
         }
-
-        var polygonGroups = ReadAllPolygonGroups(scgPaths);
-
-        var positions = new List<float>(2_000_000);
-        var indices = new List<uint>(2_000_000);
-        var skipReport = new ScgExportSkipReport();
-
-        foreach (var sc2Path in sc2Paths)
+        if (indices.Count == 0 && groups.Values.Any(g => g.PrimitiveType == 1)) throw new InvalidDataException("SCG содержит геометрию, но экспорт не выбрал ни одного triangle batch.");
+        // OBJ2 schema 3: draw ranges, positions, UVs, normals, UInt32 triangle indices.
+        using (var writer = new BinaryWriter(File.Create(Path.Combine(processedDirectory, "objects_mesh.bin"))))
         {
-            try
-            {
-                var sc2Bytes = _dvplDecoder.DecodeFile(sc2Path);
-                var scene = _sc2SceneReader.Read(sc2Bytes);
-
-                AppendSceneMeshes(
-                    scene,
-                    polygonGroups,
-                    positions,
-                    indices,
-                    skipReport);
-            }
-            catch (Exception exception)
-            {
-                Console.WriteLine($"[SC2] Failed to read scene '{sc2Path}': {exception.Message}");
-            }
+            writer.Write(0x324a424f); writer.Write(3); writer.Write(positions.Count / 3); writer.Write(indices.Count); writer.Write(draws.Count);
+            foreach (var draw in draws) { writer.Write(draw.Start); writer.Write(draw.Count); writer.Write(draw.Material); }
+            foreach (var value in positions) writer.Write(value);
+            foreach (var value in uvs) writer.Write(value);
+            foreach (var value in normals) writer.Write(value);
+            foreach (var value in indices) writer.Write(value);
         }
-
-        Console.WriteLine(
-            $"[SCG] Exported object mesh: sc2={sc2Paths.Length}, scg={scgPaths.Length}, polygonGroups={polygonGroups.Count}, vertices={positions.Count / 3}, indices={indices.Count}");
-
-        Console.WriteLine(
-            $"[SCG] Skip report: scenesWithoutHierarchy={skipReport.ScenesWithoutHierarchy}, " +
-            $"totalEntities={skipReport.TotalEntities}, noTransform={skipReport.NoTransform}, " +
-            $"noRender={skipReport.NoRender}, noDatasource={skipReport.NoDatasource}, " +
-            $"datasourceNotFound={skipReport.DatasourceNotFound}, " +
-            $"filtered={skipReport.Filtered}, " +
-            $"appendedEntities={skipReport.AppendedEntities}, " +
-            $"appendedDatasources={skipReport.AppendedDatasources}");
-
-        WriteMeshBinary(meshPath, positions, indices);
-
-        var manifest = new MapObjectMeshManifestDto(
-            MapId: mapId,
-            VertexCount: positions.Count / 3,
-            IndexCount: indices.Count,
-            Url: $"/api/maps/{mapId}/object-mesh.bin");
-
-        await WriteManifestAsync(manifestPath, manifest, cancellationToken);
-
+        var manifest = new MapObjectMeshManifestDto(mapName, positions.Count / 3, indices.Count, $"/api/maps/{mapName}/object-mesh.bin", 3, materials, instances, warnings.Order().ToArray());
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        await File.WriteAllTextAsync(Path.Combine(processedDirectory, "objects_mesh_manifest.json"), JsonSerializer.Serialize(manifest, options), ct);
+        await File.WriteAllTextAsync(Path.Combine(processedDirectory, "objects.json"), JsonSerializer.Serialize(new MapObjectSetDto(mapName, objects.Count, objects), options), ct);
         return manifest;
     }
-    
-    private IReadOnlyDictionary<ulong, ScgPolygonGroup> ReadAllPolygonGroups(
-        IReadOnlyList<string> scgPaths)
+
+    private static float[] ReadVector(Dictionary<string, object?> transform, string key, int count) =>
+        transform.GetValueOrDefault(key) is float[] values && values.Length == count && values.All(float.IsFinite) ? values : throw new InvalidDataException($"Некорректный {key}.");
+    private static Vector3 ToThree(Vector3 v) => new(v.X, v.Z, -v.Y);
+    private static Vector3[] GenerateNormals(ScgPolygonGroup group)
     {
-        var result = new Dictionary<ulong, ScgPolygonGroup>();
-
-        foreach (var scgPath in scgPaths)
+        var result = new Vector3[group.VertexCount];
+        Vector3 Position(int i)
         {
-            try
-            {
-                var scgBytes = _dvplDecoder.DecodeFile(scgPath);
-                var polygonGroups = _polygonGroupReader.Read(scgBytes);
-
-                foreach (var polygonGroup in polygonGroups.Values)
-                {
-                    result[polygonGroup.Id] = polygonGroup;
-                }
-
-                Console.WriteLine(
-                    $"[SCG] Loaded '{scgPath}': polygonGroups={polygonGroups.Count}");
-            }
-            catch (Exception exception)
-            {
-                Console.WriteLine($"[SCG] Failed to read '{scgPath}': {exception.Message}");
-            }
+            var at = i * group.VertexStride;
+            return new(BinaryPrimitives.ReadSingleLittleEndian(group.Vertices.AsSpan(at)),
+                BinaryPrimitives.ReadSingleLittleEndian(group.Vertices.AsSpan(at + 4)),
+                BinaryPrimitives.ReadSingleLittleEndian(group.Vertices.AsSpan(at + 8)));
         }
-
+        int Index(int i)
+        {
+            uint value = group.IndexFormat == 0 ? BinaryPrimitives.ReadUInt16LittleEndian(group.Indices.AsSpan(i * 2)) : BinaryPrimitives.ReadUInt32LittleEndian(group.Indices.AsSpan(i * 4));
+            if (value >= group.VertexCount) throw new InvalidDataException($"SCG group {group.Id}: index вне vertex buffer.");
+            return (int)value;
+        }
+        for (int i = 0; i < group.IndexCount; i += 3)
+        {
+            int a = Index(i), b = Index(i + 1), c = Index(i + 2);
+            var normal = Vector3.Cross(Position(b) - Position(a), Position(c) - Position(a));
+            if (!float.IsFinite(normal.LengthSquared())) throw new InvalidDataException($"SCG group {group.Id}: non-finite geometry.");
+            result[a] += normal; result[b] += normal; result[c] += normal;
+        }
+        for (int i = 0; i < result.Length; i++) result[i] = result[i].LengthSquared() > 1e-12f ? Vector3.Normalize(result[i]) : Vector3.UnitZ;
         return result;
     }
-
-    private static IReadOnlyList<string> FindFiles(
-        string directory,
-        string searchPattern)
-    {
-        return Directory
-            .EnumerateFiles(directory, searchPattern, SearchOption.AllDirectories)
-            .ToArray();
-    }
-
-    private static void AppendSceneMeshes(
-        Dictionary<string, object?> scene,
-        IReadOnlyDictionary<ulong, ScgPolygonGroup> polygonGroups,
-        List<float> positions,
-        List<uint> indices,
-        ScgExportSkipReport skipReport)
-    {
-        if (!scene.TryGetValue("#hierarchy", out var hierarchy))
-        {
-            skipReport.ScenesWithoutHierarchy++;
-            return;
-        }
-
-        foreach (var entity in EnumerateEntities(hierarchy))
-        {
-            skipReport.TotalEntities++;
-
-            var transform = FindComponent(entity, "TransformComponent");
-            var render = FindComponent(entity, "RenderComponent");
-
-            if (transform is null)
-            {
-                skipReport.NoTransform++;
-                continue;
-            }
-
-            if (render is null)
-            {
-                skipReport.NoRender++;
-                continue;
-            }
-
-            if (!TryReadVector3(transform, "tc.worldTranslation", out var translation))
-            {
-                skipReport.NoTransform++;
-                continue;
-            }
-
-            if (!TryReadVector4(transform, "tc.worldRotation", out var rotation))
-            {
-                skipReport.NoTransform++;
-                continue;
-            }
-
-            if (!TryReadVector3(transform, "tc.worldScale", out var scale))
-            {
-                scale = [1f, 1f, 1f];
-            }
-
-            var entityName = TryGetString(entity, "name")
-                             ?? TryGetString(entity, "##name")
-                             ?? string.Empty;
-
-            var isImportantMapObject = IsImportantMapObject(entityName);
-
-            if (!PassObjectFilter(entityName, render, scale, translation))
-            {
-                skipReport.Filtered++;
-                continue;
-            }
-
-            var dataSourceIds = ReadLod0DataSourceIds(render, isImportantMapObject);
-
-            if (dataSourceIds.Count == 0)
-            {
-                skipReport.NoDatasource++;
-                continue;
-            }
-            
-            if (isImportantMapObject)
-            {
-                Console.WriteLine(
-                    $"[SCG] Important object included: '{entityName}', datasources={dataSourceIds.Count}");
-            }
-
-            var position = new Vector3(translation[0], translation[1], translation[2]);
-            var scaleVector = new Vector3(scale[0], scale[1], scale[2]);
-
-            var quaternion = new Quaternion(
-                rotation[0],
-                rotation[1],
-                rotation[2],
-                rotation[3]);
-
-            quaternion = Quaternion.Normalize(quaternion);
-
-            var appendedDatasourceCount = 0;
-
-            foreach (var dataSourceId in dataSourceIds)
-            {
-                if (!polygonGroups.TryGetValue(dataSourceId, out var polygonGroup))
-                {
-                    skipReport.DatasourceNotFound++;
-                    continue;
-                }
-
-                AppendPolygonGroup(
-                    polygonGroup,
-                    position,
-                    scaleVector,
-                    quaternion,
-                    positions,
-                    indices);
-
-                appendedDatasourceCount++;
-                skipReport.AppendedDatasources++;
-            }
-
-            if (appendedDatasourceCount > 0)
-            {
-                skipReport.AppendedEntities++;
-            }
-        }
-    }
-
-    private static void AppendPolygonGroup(
-        ScgPolygonGroup polygonGroup,
-        Vector3 translation,
-        Vector3 scale,
-        Quaternion rotation,
-        List<float> positions,
-        List<uint> indices)
-    {
-        var vertexBase = checked((uint)(positions.Count / 3));
-
-        for (var i = 0; i < polygonGroup.VertexCount; i++)
-        {
-            var vertexOffset = i * polygonGroup.VertexStride;
-
-            var local = new Vector3(
-                BinaryPrimitives.ReadSingleLittleEndian(polygonGroup.Vertices.AsSpan(vertexOffset, 4)),
-                BinaryPrimitives.ReadSingleLittleEndian(polygonGroup.Vertices.AsSpan(vertexOffset + 4, 4)),
-                BinaryPrimitives.ReadSingleLittleEndian(polygonGroup.Vertices.AsSpan(vertexOffset + 8, 4)));
-
-            var scaled = local * scale;
-            var world = Vector3.Transform(scaled, rotation) + translation;
-            var three = BlitzWorldToThree(world);
-
-            positions.Add(three.X);
-            positions.Add(three.Y);
-            positions.Add(three.Z);
-        }
-
-        for (var i = 0; i < polygonGroup.IndexCount; i++)
-        {
-            var indexOffset = i * sizeof(ushort);
-
-            var sourceIndex = BinaryPrimitives.ReadUInt16LittleEndian(
-                polygonGroup.Indices.AsSpan(indexOffset, 2));
-
-            if (sourceIndex >= polygonGroup.VertexCount)
-            {
-                continue;
-            }
-
-            indices.Add(vertexBase + sourceIndex);
-        }
-    }
-
-    private static Vector3 BlitzWorldToThree(Vector3 value)
-    {
-        // Blitz: X/Y — горизонтальная плоскость, Z — высота.
-        // Three: X/Z — горизонтальная плоскость, Y — высота.
-        return new Vector3(
-            value.X,
-            value.Z,
-            -value.Y);
-    }
-
-    private static List<ulong> ReadLod0DataSourceIds(
-        Dictionary<string, object?> render,
-        bool forceImportantObject)
-    {
-        var result = new List<ulong>();
-
-        if (!render.TryGetValue("rc.renderObj", out var renderObjectValue) ||
-            renderObjectValue is not Dictionary<string, object?> renderObject)
-        {
-            return result;
-        }
-
-        var renderObjectName = TryGetString(renderObject, "##name");
-
-        if (!forceImportantObject &&
-            !string.IsNullOrWhiteSpace(renderObjectName) &&
-            renderObjectName.Contains("Skinned", StringComparison.OrdinalIgnoreCase))
-        {
-            return result;
-        }
-
-        if (!renderObject.TryGetValue("ro.batches", out var batchesValue) ||
-            batchesValue is not Dictionary<string, object?> batches)
-        {
-            return result;
-        }
-
-        foreach (var (batchKey, batchValue) in batches)
-        {
-            if (batchValue is not Dictionary<string, object?> batch)
-            {
-                continue;
-            }
-
-            if (!forceImportantObject && int.TryParse(batchKey, out var batchIndex))
-            {
-                var lodKey = $"rb{batchIndex}.lodIndex";
-
-                if (TryGetInt32(renderObject, lodKey, out var lodIndex) && lodIndex > 0)
-                {
-                    continue;
-                }
-            }
-
-            if (!TryGetUInt64(batch, "rb.datasource", out var dataSourceId))
-            {
-                continue;
-            }
-
-            result.Add(dataSourceId);
-        }
-
-        return result;
-    }
-
-    private static bool PassObjectFilter(
-        string entityName,
-        Dictionary<string, object?> render,
-        float[] scale,
-        float[] position)
-    {
-        if (!TryReadRenderBounds(render, out var boundsMin, out var boundsMax))
-        {
-            return false;
-        }
-
-        var localSize = new[]
-        {
-            boundsMax[0] - boundsMin[0],
-            boundsMax[1] - boundsMin[1],
-            boundsMax[2] - boundsMin[2]
-        };
-
-        var scaledSizeX = MathF.Abs(localSize[0] * scale[0]);
-        var scaledSizeY = MathF.Abs(localSize[1] * scale[1]);
-        var scaledSizeZ = MathF.Abs(localSize[2] * scale[2]);
-
-        var maxScaledSize = MathF.Max(
-            scaledSizeX,
-            MathF.Max(scaledSizeY, scaledSizeZ));
-
-        var maxHorizontalSize = MathF.Max(scaledSizeX, scaledSizeY);
-        var minHorizontalSize = MathF.Min(scaledSizeX, scaledSizeY);
-        var horizontalArea = scaledSizeX * scaledSizeY;
-
-        if (maxScaledSize < 0.35f)
-        {
-            return false;
-        }
-
-        if (!IsReasonableMapPosition(position))
-        {
-            return false;
-        }
-
-        if (IsImportantMapObject(entityName))
-        {
-            return true;
-        }
-
-        if (maxScaledSize > 900f)
-        {
-            return false;
-        }
-
-        if (maxHorizontalSize > 700f && minHorizontalSize > 450f)
-        {
-            return false;
-        }
-
-        if (horizontalArea > 180000f)
-        {
-            return false;
-        }
-
-        return true;
-    }
-    
-    private static bool IsImportantMapObject(string entityName)
-    {
-        if (string.IsNullOrWhiteSpace(entityName))
-        {
-            return false;
-        }
-
-        var name = entityName.ToLowerInvariant();
-
-        return name.Contains("bld_")
-               || name.Contains("house")
-               || name.Contains("barn")
-               || name.Contains("church")
-               || name.Contains("bunker")
-               || name.Contains("bridge")
-               || name.Contains("hangar")
-               || name.Contains("heinkel")
-               || name.Contains("plane")
-               || name.Contains("airplane")
-               || name.Contains("destroy")
-               || name.Contains("destr")
-               || name.Contains("ruin")
-               || name.Contains("stn_")
-               || name.Contains("stone")
-               || name.Contains("rock");
-    }
-
-    private static bool IsReasonableMapPosition(float[] position)
-    {
-        // Для обычных игровых объектов держим поле карты + небольшой запас.
-        // Очень далёкие lightning/cloud/vista plane должны отсеиваться.
-        return MathF.Abs(position[0]) <= 700f
-               && MathF.Abs(position[1]) <= 700f
-               && position[2] >= -100f
-               && position[2] <= 500f;
-    }
-
-    private static bool TryReadRenderBounds(
-        Dictionary<string, object?> render,
-        out float[] boundsMin,
-        out float[] boundsMax)
-    {
-        boundsMin = [float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity];
-        boundsMax = [float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity];
-
-        if (!render.TryGetValue("rc.renderObj", out var renderObjectValue) ||
-            renderObjectValue is not Dictionary<string, object?> renderObject)
-        {
-            return false;
-        }
-
-        if (!renderObject.TryGetValue("ro.batches", out var batchesValue) ||
-            batchesValue is not Dictionary<string, object?> batches)
-        {
-            return false;
-        }
-
-        var count = 0;
-
-        foreach (var batchValue in batches.Values)
-        {
-            if (batchValue is not Dictionary<string, object?> batch)
-            {
-                continue;
-            }
-
-            if (!batch.TryGetValue("rb.aabbox", out var aabbValue) ||
-                aabbValue is not Sc2AabBox aabb)
-            {
-                continue;
-            }
-
-            for (var i = 0; i < 3; i++)
-            {
-                boundsMin[i] = MathF.Min(boundsMin[i], aabb.Min[i]);
-                boundsMax[i] = MathF.Max(boundsMax[i], aabb.Max[i]);
-            }
-
-            count++;
-        }
-
-        return count > 0
-            && IsFinite(boundsMin)
-            && IsFinite(boundsMax)
-            && boundsMax[0] > boundsMin[0]
-            && boundsMax[1] > boundsMin[1]
-            && boundsMax[2] > boundsMin[2];
-    }
-
-    private static IEnumerable<Dictionary<string, object?>> EnumerateEntities(object? value)
-    {
-        if (value is Dictionary<string, object?> entity)
-        {
-            yield return entity;
-
-            if (entity.TryGetValue("#hierarchy", out var children))
-            {
-                foreach (var child in EnumerateEntities(children))
-                {
-                    yield return child;
-                }
-            }
-
-            yield break;
-        }
-
-        if (value is List<object?> list)
-        {
-            foreach (var item in list)
-            {
-                foreach (var child in EnumerateEntities(item))
-                {
-                    yield return child;
-                }
-            }
-        }
-    }
-
-    private static Dictionary<string, object?>? FindComponent(
-        Dictionary<string, object?> entity,
-        string componentType)
-    {
-        if (!entity.TryGetValue("components", out var componentsValue) ||
-            componentsValue is not Dictionary<string, object?> components)
-        {
-            return null;
-        }
-
-        foreach (var value in components.Values)
-        {
-            if (value is not Dictionary<string, object?> component)
-            {
-                continue;
-            }
-
-            var currentType = TryGetString(component, "comp.typename");
-
-            if (string.Equals(currentType, componentType, StringComparison.OrdinalIgnoreCase))
-            {
-                return component;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool TryReadVector3(
-        Dictionary<string, object?> dictionary,
-        string key,
-        out float[] value)
-    {
-        value = [];
-
-        if (!dictionary.TryGetValue(key, out var raw))
-        {
-            return false;
-        }
-
-        if (raw is not float[] vector || vector.Length < 3)
-        {
-            return false;
-        }
-
-        value = vector;
-
-        return IsFinite(value);
-    }
-
-    private static bool TryReadVector4(
-        Dictionary<string, object?> dictionary,
-        string key,
-        out float[] value)
-    {
-        value = [];
-
-        if (!dictionary.TryGetValue(key, out var raw))
-        {
-            return false;
-        }
-
-        if (raw is not float[] vector || vector.Length < 4)
-        {
-            return false;
-        }
-
-        value = vector;
-
-        return IsFinite(value);
-    }
-
-    private static bool TryGetInt32(
-        Dictionary<string, object?> dictionary,
-        string key,
-        out int value)
-    {
-        value = 0;
-
-        if (!dictionary.TryGetValue(key, out var raw))
-        {
-            return false;
-        }
-
-        switch (raw)
-        {
-            case int intValue:
-                value = intValue;
-                return true;
-
-            case uint uintValue when uintValue <= int.MaxValue:
-                value = (int)uintValue;
-                return true;
-
-            default:
-                return false;
-        }
-    }
-
-    private static bool TryGetUInt64(
-        Dictionary<string, object?> dictionary,
-        string key,
-        out ulong value)
-    {
-        value = 0;
-
-        if (!dictionary.TryGetValue(key, out var raw))
-        {
-            return false;
-        }
-
-        switch (raw)
-        {
-            case int intValue when intValue >= 0:
-                value = (ulong)intValue;
-                return true;
-
-            case uint uintValue:
-                value = uintValue;
-                return true;
-
-            case long longValue when longValue >= 0:
-                value = (ulong)longValue;
-                return true;
-
-            case ulong ulongValue:
-                value = ulongValue;
-                return true;
-
-            default:
-                return false;
-        }
-    }
-
-    private static string? TryGetString(
-        Dictionary<string, object?> dictionary,
-        string key)
-    {
-        return dictionary.TryGetValue(key, out var value)
-            ? value as string
-            : null;
-    }
-
-    private static bool IsFinite(float[] values)
-    {
-        return values.All(x => !float.IsNaN(x) && !float.IsInfinity(x));
-    }
-
-    private static void WriteMeshBinary(
-        string path,
-        IReadOnlyList<float> positions,
-        IReadOnlyList<uint> indices)
-    {
-        using var fileStream = File.Create(path);
-        using var writer = new BinaryWriter(fileStream);
-
-        var vertexCount = positions.Count / 3;
-        var indexCount = indices.Count;
-
-        writer.Write(vertexCount);
-        writer.Write(indexCount);
-
-        foreach (var position in positions)
-        {
-            writer.Write(position);
-        }
-
-        foreach (var index in indices)
-        {
-            writer.Write(index);
-        }
-    }
-
-    private static async Task WriteManifestAsync(
-        string path,
-        MapObjectMeshManifestDto manifest,
-        CancellationToken cancellationToken)
-    {
-        var json = JsonSerializer.Serialize(manifest, JsonOptions);
-
-        await File.WriteAllTextAsync(path, json, cancellationToken);
-    }
+    private static MapObjectVector3Dto V(Vector3 v) => new(v.X, v.Y, v.Z);
 }

@@ -1,4 +1,4 @@
-﻿/TBReplays/TBReplays/Data/Imported/07_fort_ft-278b246e/07_fort_ft/blitz/07_fort_ft.lka.dvpl
+/TBReplays/TBReplays/Data/Imported/07_fort_ft-278b246e/07_fort_ft/blitz/07_fort_ft.lka.dvpl
 /TBReplays/TBReplays/Data/Imported/07_fort_ft-278b246e/07_fort_ft/blitz/07_fort_ft.mkm.dvpl
 /TBReplays/TBReplays/Data/Imported/07_fort_ft-278b246e/07_fort_ft/blitz/fort.lka.dvpl
 /TBReplays/TBReplays/Data/Imported/07_fort_ft-278b246e/07_fort_ft/blitz/fort.mkm.dvpl
@@ -995,3 +995,20 @@
 /TBReplays/TBReplays/Data/Processed/33_neptune_nt-98873f6a/objects_mesh_manifest.json
 /TBReplays/TBReplays/Data/Processed/33_neptune_nt-98873f6a/terrain_color.dds
 /TBReplays/TBReplays/Data/Processed/33_neptune_nt-98873f6a/terrain_texture_manifest.json
+/MapsFiles/
+**/Maps_game/
+**/MapsFiles/
+**/MapFiles/
+**/Data/Imported/
+**/Data/Processed/
+**/Data/ImportJobs/
+**/Data/map_catalog.json
+**/bin/
+**/obj/
+
+# Portable deployments: private paths and separately delivered assets
+**/appsettings.Local.json
+**/Directory.Build.local.props
+/Maps/
+**/MapData/
+/audits/map-fixes/

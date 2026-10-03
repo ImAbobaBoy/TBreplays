@@ -1,14 +1,19 @@
 import * as THREE from 'three';
-import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
+import { MapDdsLoader } from '../MapDdsLoader';
+import { isTacticalDecoration } from '../TacticalMapObjects';
 
 import type { TBReplaysApi } from '../../api/TBReplaysApi';
-import type { MapObjectMeshManifest } from '../../domain/MapModels';
+import type { MapObjectMeshManifest, MapObjectMeshMaterial } from '../../domain/MapModels';
 
 export class ObjectMeshLayer {
+  private generation = 0;
   private readonly root: THREE.Group;
   private readonly api: TBReplaysApi;
   private readonly renderer: THREE.WebGLRenderer;
-  private readonly ddsLoader = new DDSLoader();
+  private readonly ddsLoader = new MapDdsLoader().setWithCredentials(true);
+  private clippingPlanes: THREE.Plane[] = [];
+  private gameplayBounds: THREE.Box3 | null = null;
+  private excludedRanges: Array<{ startIndex: number; indexCount: number }> = [];
 
   private readonly fallbackMaterial = new THREE.MeshStandardMaterial({
     color: 0xb08968,
@@ -27,22 +32,43 @@ export class ObjectMeshLayer {
     this.renderer = renderer;
   }
 
-  public async load(mapId: string): Promise<void> {
+  public async load(mapId: string, gameplayBounds: THREE.Box3): Promise<void> {
     this.clear();
+    const generation = this.generation;
+    this.gameplayBounds = gameplayBounds.clone();
+    this.clippingPlanes = [
+      new THREE.Plane(new THREE.Vector3(1, 0, 0), -gameplayBounds.min.x),
+      new THREE.Plane(new THREE.Vector3(-1, 0, 0), gameplayBounds.max.x),
+      new THREE.Plane(new THREE.Vector3(0, 0, 1), -gameplayBounds.min.z),
+      new THREE.Plane(new THREE.Vector3(0, 0, -1), gameplayBounds.max.z),
+    ];
+    this.renderer.localClippingEnabled = true;
 
     const manifest = await this.api.getObjectMeshManifest(mapId);
-
+    if (generation !== this.generation) return;
+    this.excludedRanges = (manifest.instances ?? []).filter(instance => isTacticalDecoration(instance.name));
     if (manifest.vertexCount <= 0 || manifest.indexCount <= 0) {
       return;
     }
 
     const buffer = await this.api.getObjectMesh(manifest.url);
-    const mesh = await this.parseObjectMesh(buffer, manifest);
+    if (generation !== this.generation) return;
+    const mesh = await this.parseObjectMesh(buffer);
+    if (generation !== this.generation) { this.disposeObject(mesh); return; }
 
     this.root.add(mesh);
+    if (new DataView(buffer).getInt32(0, true) === 0x324A424F) {
+      const usedMaterials = new Set(mesh.geometry.groups.map(group => group.materialIndex));
+      const materials = await this.createMaterials({ ...manifest, materials: manifest.materials?.filter(material => usedMaterials.has(material.index)) }, generation);
+      if (generation !== this.generation) { for (const material of materials) if (material) this.disposeMaterial(material); return; }
+      if (Array.isArray(mesh.material)) mesh.material.forEach(m => this.disposeMaterial(m));
+      else if (mesh.material !== this.fallbackMaterial) this.disposeMaterial(mesh.material);
+      mesh.material = materials;
+    }
   }
 
   public clear(): void {
+    this.generation++;
     for (const child of [...this.root.children]) {
       this.root.remove(child);
       this.disposeObject(child);
@@ -56,14 +82,13 @@ export class ObjectMeshLayer {
 
   private async parseObjectMesh(
     buffer: ArrayBuffer,
-    manifest: MapObjectMeshManifest,
   ): Promise<THREE.Mesh> {
     const view = new DataView(buffer);
 
     const magic = view.getInt32(0, true);
 
     if (magic === 0x324A424F) {
-      return await this.parseObjectMeshV2(buffer, manifest);
+      return await this.parseObjectMeshV2(buffer);
     }
 
     return this.parseObjectMeshV1(buffer);
@@ -71,14 +96,13 @@ export class ObjectMeshLayer {
 
   private async parseObjectMeshV2(
     buffer: ArrayBuffer,
-    manifest: MapObjectMeshManifest,
   ): Promise<THREE.Mesh> {
     const view = new DataView(buffer);
 
     const magic = view.getInt32(0, true);
     const version = view.getInt32(4, true);
 
-    if (magic !== 0x324A424F || version !== 2) {
+    if (magic !== 0x324A424F || (version !== 2 && version !== 3)) {
       throw new Error(`Некорректный objects_mesh.bin. magic=${magic}, version=${version}`);
     }
 
@@ -110,6 +134,8 @@ export class ObjectMeshLayer {
     const uvs = new Float32Array(buffer, offset, vertexCount * 2);
     offset += vertexCount * 2 * 4;
 
+    const normals = version === 3 ? new Float32Array(buffer, offset, vertexCount * 3) : null;
+    if (normals) offset += vertexCount * 3 * 4;
     const indices = new Uint32Array(buffer, offset, indexCount);
     offset += indexCount * 4;
 
@@ -134,6 +160,18 @@ export class ObjectMeshLayer {
     geometry.setIndex(new THREE.BufferAttribute(indices, 1));
 
     for (const group of groups) {
+      if (this.excludedRanges.some(range => group.startIndex >= range.startIndex
+        && group.startIndex < range.startIndex + range.indexCount)) continue;
+      const box = this.gameplayBounds;
+      if (box) {
+        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+        for (let i = group.startIndex; i < group.startIndex + group.indexCount; i++) {
+          const vertex = indices[i] * 3;
+          minX = Math.min(minX, positions[vertex]); maxX = Math.max(maxX, positions[vertex]);
+          minZ = Math.min(minZ, positions[vertex + 2]); maxZ = Math.max(maxZ, positions[vertex + 2]);
+        }
+        if (maxX < box.min.x || minX > box.max.x || maxZ < box.min.z || minZ > box.max.z) continue;
+      }
       geometry.addGroup(
         group.startIndex,
         group.indexCount,
@@ -141,12 +179,19 @@ export class ObjectMeshLayer {
       );
     }
 
-    geometry.computeVertexNormals();
+    if (normals) geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+    else geometry.computeVertexNormals();
     geometry.computeBoundingSphere();
 
-    const materials = await this.createMaterials(manifest);
-
-    const mesh = new THREE.Mesh(geometry, materials);
+    const initialMaterials: THREE.Material[] = [];
+    for (const group of geometry.groups) {
+      const index = group.materialIndex ?? 0;
+      if (!initialMaterials[index]) {
+        initialMaterials[index] = this.fallbackMaterial.clone();
+        initialMaterials[index].clippingPlanes = this.clippingPlanes;
+      }
+    }
+    const mesh = new THREE.Mesh(geometry, initialMaterials);
     mesh.name = 'real_map_objects_mesh_v2';
 
     return mesh;
@@ -198,6 +243,7 @@ export class ObjectMeshLayer {
 
   private async createMaterials(
     manifest: MapObjectMeshManifest,
+    generation: number,
   ): Promise<THREE.Material[]> {
     if (!manifest.materials?.length) {
       return [this.fallbackMaterial];
@@ -205,17 +251,21 @@ export class ObjectMeshLayer {
 
     const materials: THREE.Material[] = [];
 
-    for (const materialInfo of manifest.materials) {
+    const textures = new Map<string, Promise<THREE.CompressedTexture>>();
+    const create = async (materialInfo: MapObjectMeshMaterial) => {
       if (!materialInfo.textureUrl) {
         materials[materialInfo.index] = this.fallbackMaterial.clone();
-        continue;
+        materials[materialInfo.index].clippingPlanes = this.clippingPlanes;
+        return;
       }
 
       try {
-        const texture = await this.ddsLoader.loadAsync(
-          this.api.createUrl(materialInfo.textureUrl),
-        );
+        const url = this.api.createUrl(materialInfo.textureUrl);
+        let pending = textures.get(url);
+        if (!pending) { pending = this.ddsLoader.loadAsync(url); textures.set(url, pending); }
+        const texture = await pending;
 
+        if (generation !== this.generation) { texture.dispose(); return; }
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
@@ -227,17 +277,21 @@ export class ObjectMeshLayer {
           roughness: 0.9,
           metalness: 0.0,
           side: THREE.DoubleSide,
+          clippingPlanes: this.clippingPlanes,
+          alphaTest: 0.05,
         });
       } catch (error) {
         console.warn('Не удалось загрузить object texture:', materialInfo, error);
         materials[materialInfo.index] = this.fallbackMaterial.clone();
+        materials[materialInfo.index].clippingPlanes = this.clippingPlanes;
       }
+    };
+    for (let i = 0; i < manifest.materials.length; i += 8) {
+      if (generation !== this.generation) break;
+      await Promise.all(manifest.materials.slice(i, i + 8).map(create));
     }
 
-    for (let i = 0; i < manifest.materials.length; i++) {
-      materials[i] ??= this.fallbackMaterial.clone();
-    }
-
+    if (generation !== this.generation) return materials.filter(Boolean);
     return materials;
   }
 
@@ -255,7 +309,7 @@ export class ObjectMeshLayer {
 
       if (Array.isArray(object.material)) {
         for (const material of object.material) {
-          this.disposeMaterial(material);
+          if (material) this.disposeMaterial(material);
         }
       } else {
         this.disposeMaterial(object.material);

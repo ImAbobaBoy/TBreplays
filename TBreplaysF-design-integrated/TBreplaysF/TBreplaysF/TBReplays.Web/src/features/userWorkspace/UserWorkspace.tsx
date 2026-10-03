@@ -1,5 +1,6 @@
 import { createId } from '../../utils/createId';
 import { OnlinePanel, useOnline } from '../online/OnlineRoot';
+import { useMapCatalog } from '../maps/MapCatalog';
 import { OnlineMapControls } from '../online/OnlineMapControls';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -21,7 +22,6 @@ import type {
   TankVisualKey,
 } from '../../domain/TankModels';
 import {
-  availableWorkspaceMaps,
   type StrategySnapshot,
 } from '../../domain/WorkspaceModels';
 import type { ViewerEngine } from '../../engine/ViewerEngine';
@@ -128,6 +128,7 @@ export function UserWorkspace({
   onReplaySpeedChange,
 }: UserWorkspaceProps) {
   const online = useOnline();
+  const { maps: availableWorkspaceMaps } = useMapCatalog();
   const [exporting, setExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState('');
   const exportPng = async () => {
@@ -148,9 +149,9 @@ export function UserWorkspace({
   const [colorSliderPosition, setColorSliderPosition] = useState(initialSwatchPositions[0]);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
-  const activeMap = availableWorkspaceMaps.find(map => map.id === online.state.board?.mapId)
-    ?? { id: online.state.board?.mapId ?? '', title: online.state.board?.mapId ?? 'Карта не выбрана', replayMapName: '' };
-  const visibleReplays = replays.filter(replay => !activeMap.replayMapName || replay.mapName === activeMap.replayMapName);
+  const activeMap = availableWorkspaceMaps.find(map => map.id === online.state.board?.mapId || map.id === online.state.board?.mapId?.replace(/-[a-f0-9]{8}$/, ''))
+    ?? { id: online.state.board?.mapId ?? '', title: online.state.board?.mapId ?? 'Карта не выбрана', replayMapName: '', replayMapNames: [] as string[] };
+  const visibleReplays = replays.filter(replay => !activeMap.replayMapName || activeMap.replayMapNames.includes(replay.mapName));
   const canSelectReplay = online.user.role !== 'observer' && online.state.status === 'connected' && !online.state.replayPending;
   const hasReplay = state.replayLoaded && state.playback.replayId !== null;
   const maxTime = Math.max(state.playback.maxTime, state.playback.minTime + 0.05);
@@ -184,7 +185,7 @@ export function UserWorkspace({
 
   useEffect(() => {
     if (viewerReady && state.mapLoaded) void refreshCurrentSessionReplays(activeMap.replayMapName);
-  }, [viewerReady, state.mapId, state.mapLoaded]);
+  }, [viewerReady, state.mapId, state.mapLoaded, activeMap.replayMapName]);
 
   useEffect(() => {
     const replayId = state.replayId.trim();

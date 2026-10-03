@@ -1,11 +1,13 @@
-import { useState } from 'react';
-import { availableWorkspaceMaps } from '../../domain/WorkspaceModels';
+import { useEffect, useState } from 'react';
+import { useMapCatalog } from '../maps/MapCatalog';
 import { useOnline } from './OnlineRoot';
 import { onlineRequest } from '../../api/OnlineHttp';
 
 export function OnlineMapControls() {
   const { state, client, canEdit } = useOnline();
-  const [mapId, setMapId] = useState(availableWorkspaceMaps[0].id);
+  const { maps: availableWorkspaceMaps, loading, error: catalogError, reload } = useMapCatalog();
+  const [mapId, setMapId] = useState('');
+  useEffect(() => { if (!mapId && availableWorkspaceMaps.length) setMapId(availableWorkspaceMaps[0].id); }, [availableWorkspaceMaps, mapId]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const apply = async (clear: boolean) => {
@@ -23,9 +25,11 @@ export function OnlineMapControls() {
   return <section className="panel online-map-controls"><strong>Общая карта</strong>
     <p>{state.board?.mapId ?? 'Редактор должен выбрать карту'}</p>
     <select aria-label="Карта из каталога" value={availableWorkspaceMaps.some(x => x.id === mapId) ? mapId : ''} disabled={!canEdit || busy} onChange={e => setMapId(e.target.value)}>
-      <option value="" disabled>Другой Map ID</option>{availableWorkspaceMaps.map(map => <option key={map.id} value={map.id}>{map.title}</option>)}
+      <option value="" disabled>{loading ? 'Загрузка карт…' : 'Выберите карту'}</option>{availableWorkspaceMaps.map(map => <option key={map.id} value={map.id}>{map.title}</option>)}
     </select>
-    <input aria-label="Map ID общей карты" placeholder="Map ID импортированной карты" disabled={!canEdit || busy} value={mapId} onChange={e => setMapId(e.target.value)} />
+    <button disabled={loading} onClick={() => void reload()}>Обновить список карт</button>
+    {catalogError && <p role="alert">{catalogError}</p>}
+    {!loading && !availableWorkspaceMaps.length && <p>Карты ещё не импортированы.</p>}
     <button disabled={!canEdit || busy || !mapId.trim()} onClick={() => void apply(false)}>Выбрать для всех</button>
     <button disabled={!canEdit || busy || !state.board?.mapId} onClick={() => void apply(true)}>Очистить рисунки</button>
     {error && <p role="alert">{error}</p>}

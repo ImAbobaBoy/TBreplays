@@ -1,5 +1,6 @@
 using System.Text.Json;
 using TBReplays.Maps.Calibration;
+using TBReplays.Maps;
 
 namespace TBReplays.Replays;
 
@@ -12,10 +13,12 @@ public sealed class ReplayMapBindingService
     };
 
     private readonly IWebHostEnvironment _environment;
+    private readonly MapCatalogService _catalog;
 
-    public ReplayMapBindingService(IWebHostEnvironment environment)
+    public ReplayMapBindingService(IWebHostEnvironment environment, MapCatalogService? catalog = null)
     {
         _environment = environment;
+        _catalog = catalog ?? new MapCatalogService(environment);
     }
 
     public async Task<ReplayMapBindingDto> BindAsync(
@@ -82,7 +85,10 @@ public sealed class ReplayMapBindingService
 
     private async Task<IReadOnlyList<ImportedMapInfo>> ReadImportedMapsAsync(CancellationToken cancellationToken)
     {
-        var processedDirectory = Path.Combine(_environment.ContentRootPath, "Data", "Processed");
+        var catalog = await _catalog.ListAsync(cancellationToken);
+        if (catalog.Length > 0)
+            return catalog.SelectMany(map => map.ReplayMapNames.Select(alias => new ImportedMapInfo(map.Name, map.Name, alias, true))).ToArray();
+        var processedDirectory = Path.Combine(_catalog.DataRoot, "Processed");
         if (!Directory.Exists(processedDirectory))
         {
             return [];
@@ -146,6 +152,12 @@ public sealed class ReplayMapBindingService
         ImportedMapInfo map,
         string? replayMapName)
     {
+        if (map.FromCatalog)
+        {
+            if (ReplayMapNameMatcher.Normalize(map.ReplayMapName) == ReplayMapNameMatcher.Normalize(replayMapName))
+                yield return ToCandidate(map, "catalogAlias");
+            yield break;
+        }
         if (ReplayMapNameMatcher.IsMatch(map.ReplayMapName, replayMapName))
         {
             yield return ToCandidate(map, "calibrationReplayMapName");
@@ -178,5 +190,6 @@ public sealed class ReplayMapBindingService
     private sealed record ImportedMapInfo(
         string BackendMapId,
         string MapKey,
-        string? ReplayMapName);
+        string? ReplayMapName,
+        bool FromCatalog = false);
 }

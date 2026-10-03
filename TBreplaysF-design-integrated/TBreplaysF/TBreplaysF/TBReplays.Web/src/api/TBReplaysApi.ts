@@ -48,6 +48,10 @@ export class TBReplaysApi {
     return await this.getJson<TerrainTextureManifest>(`/api/maps/${mapId}/terrain/texture/manifest`);
   }
 
+  public async getMapSurface(mapId: string): Promise<import('../domain/MapModels').MapSurfaceManifest> {
+    return await this.getJson(`/api/maps/${mapId}/surface`);
+  }
+
   public async getObjectMeshManifest(mapId: string): Promise<MapObjectMeshManifest> {
     return await this.getJson<MapObjectMeshManifest>(`/api/maps/${mapId}/object-mesh/manifest`);
   }

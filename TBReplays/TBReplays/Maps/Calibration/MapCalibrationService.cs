@@ -5,6 +5,20 @@ namespace TBReplays.Maps.Calibration;
 
 public sealed class MapCalibrationService
 {
+    public MapCalibrationDto CreateFromScene(string name, string? replayMapName, DavaHeightmap heightmap, MapScene scene)
+    {
+        var b = scene.Bounds;
+        var material = scene.Material(MapScene.Id(scene.Landscape.GetValueOrDefault("matname")));
+        var textures = material.GetValueOrDefault("textures") as Dictionary<string, object?> ?? new();
+        return new(name, name, replayMapName,
+            new(MathF.Max(b[3] - b[0], b[4] - b[1]) / 2),
+            new((b[5] - b[2]) / ushort.MaxValue, b[2], "scene-landscape-bbox", 1, "Исходный bbox SC2; предыдущие ручные поправки сохранены отдельно."),
+            new(false, false, true, 0), new(false, false, false, 0), new(0), new(0, false, false),
+            new(textures.GetValueOrDefault("colorTexture") as string, textures.GetValueOrDefault("tileMask") as string,
+                textures.GetValueOrDefault("tileTexture0") as string, textures.Values.OfType<string>().Order().ToArray()),
+            CreateHeightmapStats(heightmap));
+    }
+
     private const float DefaultHorizontalHalfExtent = 300f;
 
     private static readonly JsonSerializerOptions JsonOptions = new()

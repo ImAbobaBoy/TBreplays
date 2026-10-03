@@ -49,7 +49,7 @@ export type AppState = {
 export const createInitialAppState = (): AppState => ({
   mode: 'workspace',
 
-  mapId: '18_canal_cn-e742cb29',
+  mapId: '',
   replayId: '',
 
   status: 'Готово',

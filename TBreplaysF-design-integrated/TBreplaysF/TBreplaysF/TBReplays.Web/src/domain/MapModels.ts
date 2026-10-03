@@ -23,6 +23,7 @@ export type TerrainChunkInfo = {
 };
 
 export type MapManifest = {
+  schemaVersion?: number;
   mapId: string;
   heightmapSize: number;
   heightmapTileSize: number;
@@ -50,6 +51,12 @@ export type TerrainTextureManifest = {
   url: string;
 };
 
+export type MapSurfaceManifest = {
+  textures: Array<{ role: string; url: string | null; status: string }>;
+  properties: Record<string, string>;
+  flags: Record<string, number>;
+};
+
 export type MapObjectMeshMaterial = {
   index: number;
   name?: string | null;
@@ -62,6 +69,7 @@ export type MapObjectMeshManifest = {
   indexCount: number;
   url: string;
   materials?: MapObjectMeshMaterial[];
+  instances?: Array<{ name: string; startIndex: number; indexCount: number }>;
 };
 
 export type MapObjectVector3 = {

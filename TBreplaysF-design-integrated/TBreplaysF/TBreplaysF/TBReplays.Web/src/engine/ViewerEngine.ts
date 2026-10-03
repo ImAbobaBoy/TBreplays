@@ -25,7 +25,6 @@ import type {
 } from '../domain/TankModels';
 import type { StrategySnapshot } from '../domain/WorkspaceModels';
 import { DrawingLayer } from './layers/DrawingLayer';
-import { MapEffectsLayer } from './layers/MapEffectsLayer';
 import { ObjectMeshLayer } from './layers/ObjectMeshLayer';
 import { ReplayLayer } from './layers/ReplayLayer';
 import { SurfaceTextureLayer } from './layers/SurfaceTextureLayer';
@@ -49,7 +48,6 @@ export class ViewerEngine {
   private readonly mapRoot = new THREE.Group();
   private readonly terrainRoot = new THREE.Group();
   private readonly objectRoot = new THREE.Group();
-  private readonly effectsRoot = new THREE.Group();
 
   private readonly replayRoot = new THREE.Group();
   private readonly debugRoot = new THREE.Group();
@@ -62,7 +60,6 @@ export class ViewerEngine {
   private readonly terrainLayer: TerrainLayer;
   private readonly surfaceTextureLayer: SurfaceTextureLayer;
   private readonly objectMeshLayer: ObjectMeshLayer;
-  private readonly mapEffectsLayer: MapEffectsLayer;
   private readonly drawingLayer: DrawingLayer;
   private readonly tankLayer: TankLayer;
   private readonly replayLayer: ReplayLayer;
@@ -71,6 +68,7 @@ export class ViewerEngine {
 
   private readonly resizeObserver: ResizeObserver;
 
+  private mapLoadGeneration = 0;
   private currentMapId: string | null = null;
   private currentCalibration: MapCalibration | null = null;
   private currentManifest: MapManifest | null = null;
@@ -136,10 +134,6 @@ export class ViewerEngine {
       this.renderer,
     );
 
-    this.mapEffectsLayer = new MapEffectsLayer(
-      this.effectsRoot,
-      this.api,
-    );
 
     this.tankLayer = new TankLayer(
       this.tanksRoot,
@@ -426,14 +420,19 @@ export class ViewerEngine {
       throw new Error('Map ID пустой.');
     }
 
+    if (this.disposed) throw new Error('Просмотрщик уже закрыт');
     this.clearMap();
+    const generation = this.mapLoadGeneration;
+    const checkCurrent = () => { if (this.disposed || generation !== this.mapLoadGeneration) throw new Error('Загрузка карты отменена'); };
 
     const manifest = await this.api.getMapManifest(safeMapId);
+    checkCurrent();
     const calibration = await this.tryLoadCalibration(
       safeMapId,
       manifest,
     );
 
+    checkCurrent();
     this.currentMapId = safeMapId;
     this.currentManifest = manifest;
     this.currentCalibration = calibration;
@@ -445,25 +444,28 @@ export class ViewerEngine {
       calibration,
     );
 
+    checkCurrent();
     this.terrainLayer.setTexture(terrainTexture);
 
     await this.terrainLayer.load(manifest, calibration);
 
+    checkCurrent();
+    this.focusCameraOnObject(this.terrainRoot);
+    this.controls.enabled = true;
     this.replayLayer.setCalibration(calibration);
 
-    await Promise.allSettled([
-      this.objectMeshLayer.load(safeMapId),
-      this.mapEffectsLayer.load(safeMapId, calibration),
-    ]);
+    await this.objectMeshLayer.load(safeMapId, new THREE.Box3().setFromObject(this.terrainRoot));
+    checkCurrent();
 
-    this.focusCameraOnObject(this.mapRoot);
+    this.focusCameraOnObject(this.terrainRoot);
   }
 
   public clearMap(): void {
+    this.mapLoadGeneration++;
+    this.controls.enabled = true;
     this.surfaceTextureLayer.clear();
     this.terrainLayer.clear();
     this.objectMeshLayer.clear();
-    this.mapEffectsLayer.clear();
     this.drawingLayer.clear();
     this.tankLayer.clear();
 
@@ -486,6 +488,7 @@ export class ViewerEngine {
     this.terrainLayer.setTexture(terrainTexture);
 
     await this.terrainLayer.load(this.currentManifest, calibration);
+    await this.objectMeshLayer.load(this.currentMapId, new THREE.Box3().setFromObject(this.terrainRoot));
 
     this.replayLayer.setCalibration(calibration);
   }
@@ -509,6 +512,7 @@ export class ViewerEngine {
     }
 
     this.disposed = true;
+    this.mapLoadGeneration++;
     this.replayLoadGeneration++;
 
     this.resizeObserver.disconnect();
@@ -517,7 +521,6 @@ export class ViewerEngine {
     this.surfaceTextureLayer.dispose();
     this.terrainLayer.dispose();
     this.objectMeshLayer.dispose();
-    this.mapEffectsLayer.dispose();
     this.drawingLayer.dispose();
     this.tankLayer.dispose();
     this.replayLayer.dispose();
@@ -539,7 +542,6 @@ export class ViewerEngine {
     const objectHeightOffset = calibration?.objects.heightOffset ?? 0;
 
     this.objectRoot.position.set(0, objectHeightOffset, 0);
-    this.effectsRoot.position.set(0, objectHeightOffset, 0);
   }
 
   private async tryLoadCalibration(
@@ -677,7 +679,6 @@ export class ViewerEngine {
     this.mapRoot.name = 'map_root';
     this.terrainRoot.name = 'terrain_root';
     this.objectRoot.name = 'object_root';
-    this.effectsRoot.name = 'effects_root';
 
     this.replayRoot.name = 'replay_root';
     this.debugRoot.name = 'debug_root';
@@ -687,7 +688,6 @@ export class ViewerEngine {
 
     this.mapRoot.add(this.terrainRoot);
     this.mapRoot.add(this.objectRoot);
-    this.mapRoot.add(this.effectsRoot);
 
     this.scene.add(this.mapRoot);
 
@@ -809,7 +809,7 @@ export class ViewerEngine {
 
       if (Array.isArray(object.material)) {
         for (const material of object.material) {
-          material.dispose();
+          if (material) material.dispose();
         }
       } else {
         object.material.dispose();
