@@ -43,7 +43,8 @@ public sealed class ReplayParseService
         var arena = ArenaEventDecoder.Decode(packets, vehiclesByEntityId.Keys.ToHashSet());
         var movementFrames = BuildMovementFrames(packets, vehiclesByEntityId);
         var turretFrames = BuildTurretFrames(packets, vehiclesByEntityId);
-        var shotEvents = BuildShotEvents(packets, vehiclesByEntityId);
+        var shotEvents = BuildShotEvents(packets, vehiclesByEntityId,
+            replayData.Header.ClientVersion.StartsWith("26.10.", StringComparison.Ordinal) ? 45 : 37);
 
         var projectileIdsFromShots = shotEvents
             .Select(x => x.ProjectileId)
@@ -91,6 +92,7 @@ public sealed class ReplayParseService
 
         var result = new ReplayParseResult
         {
+            ShotProtocolVersion = 1,
             RecorderEntityId = vehicles.FirstOrDefault(x => x.AccountId == metaInfo.RecorderAccountId)?.EntityId,
             RecorderTeamId = vehicles.FirstOrDefault(x => x.AccountId == metaInfo.RecorderAccountId)?.TeamId,
             SchemaVersion = 2,
@@ -313,7 +315,8 @@ public sealed class ReplayParseService
 
     private static IReadOnlyList<ReplayShotEvent> BuildShotEvents(
         IReadOnlyList<ReplayPacket> packets,
-        IReadOnlyDictionary<uint, ReplayVehicleInfo> vehiclesByEntityId)
+        IReadOnlyDictionary<uint, ReplayVehicleInfo> vehiclesByEntityId,
+        int shotPayloadLength)
     {
         if (vehiclesByEntityId.Count == 0)
         {
@@ -324,7 +327,7 @@ public sealed class ReplayParseService
             .Select(EntityMethodPacketDecoder.TryDecode)
             .Where(x => x is not null)
             .Select(x => x!)
-            .Select(EntityMethodPacketDecoder.TryDecodeShotFired)
+            .Select(method => EntityMethodPacketDecoder.TryDecodeShotFired(method, shotPayloadLength))
             .Where(x => x is not null)
             .Select(x => x!)
             .Where(x => vehiclesByEntityId.ContainsKey(x.ShooterEntityId))

@@ -21,7 +21,7 @@ public sealed class SketchController(SketchService sketches, OnlineConnections c
         {
             "unauthorized" => Unauthorized(result),
             "forbidden" => StatusCode(403, result),
-            "revisionConflict" or "mapConflict" or "operationIdConflict" => Conflict(result),
+            "revisionConflict" or "mapConflict" or "operationIdConflict" or "slideConflict" or "undoConflict" => Conflict(result),
             "notFound" => NotFound(result),
             _ => BadRequest(result)
         };

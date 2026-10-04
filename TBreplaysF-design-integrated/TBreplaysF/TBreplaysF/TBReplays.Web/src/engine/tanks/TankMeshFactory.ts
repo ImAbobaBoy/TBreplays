@@ -70,10 +70,6 @@ export function createTankVisual(model: ManualTankModel): TankVisual {
   root.userData.kind = 'manualTank';
   root.userData.manualTankId = model.id;
 
-  // TODO: Временное MVP-решение.
-  // Сейчас танки собраны из простых primitive meshes, чтобы быстро получить постановку, drag, yaw корпуса и yaw башни.
-  // Потом заменить на реальные/условные модели танков по visualKey или vehicleCompactDescriptor.
-  // Убрать primitive-геометрию, когда появится asset pipeline для tank models.
   const bodyMaterial = new THREE.MeshStandardMaterial({
     color: new THREE.Color(model.color),
     roughness: 0.82,
@@ -106,6 +102,27 @@ export function createTankVisual(model: ManualTankModel): TankVisual {
   body.position.y = dimensions.bodyHeight / 2;
   root.add(body);
 
+  for (const side of [-1, 1]) {
+    const track = new THREE.Mesh(new THREE.BoxGeometry(1.15, dimensions.bodyHeight * .65, dimensions.bodyLength * 1.04), darkMaterial);
+    track.name = 'tank_track'; track.position.set(side * dimensions.bodyWidth * .47, dimensions.bodyHeight * .33, 0); root.add(track);
+    for (let wheel = 0; wheel < (model.visualKey === 'light' ? 4 : 6); wheel++) {
+      const count = model.visualKey === 'light' ? 4 : 6;
+      const roller = new THREE.Mesh(new THREE.CylinderGeometry(.48, .48, .12, 10), bodyMaterial);
+      roller.rotation.z = Math.PI / 2;
+      roller.position.set(side * (dimensions.bodyWidth * .47 + .59), dimensions.bodyHeight * .35, (wheel / (count - 1) - .5) * dimensions.bodyLength * .8);
+      root.add(roller);
+    }
+  }
+  const glacis = new THREE.Mesh(new THREE.BoxGeometry(dimensions.bodyWidth * .82, dimensions.bodyHeight * .45, dimensions.bodyLength * .3), bodyMaterial);
+  glacis.rotation.x = -.25;
+  glacis.position.set(0, dimensions.bodyHeight * .95, dimensions.bodyLength * .32); root.add(glacis);
+  if (model.visualKey === 'heavy') {
+    for (const side of [-1, 1]) {
+      const armor = new THREE.Mesh(new THREE.BoxGeometry(.35, dimensions.bodyHeight * .55, dimensions.bodyLength * .8), bodyMaterial);
+      armor.position.set(side * dimensions.bodyWidth * .59, dimensions.bodyHeight * .6, 0); root.add(armor);
+    }
+  }
+
   const turretPivot = new THREE.Group();
   turretPivot.name = 'manual_tank_turret_pivot';
   turretPivot.position.y = dimensions.bodyHeight + 0.65;
@@ -113,7 +130,9 @@ export function createTankVisual(model: ManualTankModel): TankVisual {
   root.add(turretPivot);
 
   const turret = new THREE.Mesh(
-    new THREE.BoxGeometry(
+    model.visualKey === 'light' || model.visualKey === 'medium' ? new THREE.CylinderGeometry(
+      dimensions.turretWidth * .42, dimensions.turretWidth * .55, dimensions.turretHeight, model.visualKey === 'light' ? 16 : 8,
+    ) : new THREE.BoxGeometry(
       dimensions.turretWidth,
       dimensions.turretHeight,
       dimensions.turretLength,
@@ -123,6 +142,13 @@ export function createTankVisual(model: ManualTankModel): TankVisual {
 
   turret.name = 'manual_tank_turret';
   turret.position.y = dimensions.turretHeight / 2;
+  if (model.visualKey === 'td') {
+    turret.scale.set(1, 1.3, 1.4);
+    turret.rotation.x = -.12;
+    turretPivot.position.z = dimensions.bodyLength * .22;
+    const rearDeck = new THREE.Mesh(new THREE.BoxGeometry(dimensions.bodyWidth * .65, .5, dimensions.bodyLength * .4), darkMaterial);
+    rearDeck.position.set(0, dimensions.bodyHeight + .2, -dimensions.bodyLength * .26); root.add(rearDeck);
+  }
   turretPivot.add(turret);
 
   const gun = new THREE.Mesh(
@@ -233,7 +259,8 @@ export function updateTankLabel(
     material.map.dispose();
   }
 
-  material.map = createTextTexture(label || 'Танк');
+  visual.labelSprite.visible = !!label.trim();
+  material.map = createTextTexture(label);
   material.needsUpdate = true;
 }
 
@@ -242,7 +269,7 @@ export function disposeTankVisual(visual: TankVisual): void {
 }
 
 function createTankLabelSprite(label: string): THREE.Sprite {
-  const texture = createTextTexture(label || 'Танк');
+  const texture = createTextTexture(label);
 
   const material = new THREE.SpriteMaterial({
     map: texture,
@@ -251,6 +278,7 @@ function createTankLabelSprite(label: string): THREE.Sprite {
   });
 
   const sprite = new THREE.Sprite(material);
+  sprite.visible = !!label.trim();
   sprite.name = 'manual_tank_label';
   sprite.scale.set(16, 5, 1);
   sprite.renderOrder = 1000;

@@ -11,6 +11,7 @@ import type {
 } from '../../domain/ReplayModels';
 import type { ManualTankModel } from '../../domain/TankModels';
 import { mapReplayPositionToThree } from '../MapCalibrationTransforms';
+import { shotRayEnd } from '../replay/ReplayShotGeometry';
 import {
   findLastVisibleSampleTime,
   findLastVisibleTime,
@@ -79,6 +80,15 @@ export class ReplayLayer {
   private timeline: ReplayTimeline | null = null;
   private calibration: MapCalibration | null = null;
   private currentTime = 0;
+  private selectedEntityId: number | null = null;
+
+  public selectAt(raycaster: THREE.Raycaster): void {
+    const hit = raycaster.intersectObjects([...this.tankEntries.values()].filter(entry => entry.visual.root.visible).map(entry => entry.visual.root), true)[0];
+    let object: THREE.Object3D | null = hit?.object ?? null;
+    while (object && object.userData.replayEntityId === undefined) object = object.parent;
+    this.selectedEntityId = object ? Number(object.userData.replayEntityId) : null;
+    this.setTime(this.currentTime);
+  }
 
   public constructor(root: THREE.Group) {
     this.root = root;
@@ -115,6 +125,8 @@ export class ReplayLayer {
         null,
         timeline.minTime,
       ));
+      visual.root.traverse(object => { object.userData.replayEntityId = track.entityId; });
+      trackGroup.userData.replayEntityId = track.entityId;
       const consumableSprites = this.createConsumableSprites();
       const activeEffectGlow = this.createActiveEffectGlowSprite();
 
@@ -167,6 +179,15 @@ export class ReplayLayer {
 
     this.updateShotLines(time);
   }
+  public updateView(camera: THREE.PerspectiveCamera, viewportHeight: number): void {
+    // A world-space subpixel cylinder disappears in the full-map view. Keep a 3px tracer.
+    const worldPerPixel = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / Math.max(1, viewportHeight);
+    for (const entry of this.shotLineEntries) {
+      if (!entry.object.visible) continue;
+      const radius = Math.max(SHOT_LINE_RADIUS, camera.position.distanceTo(entry.object.position) * worldPerPixel * 1.5);
+      entry.object.scale.set(radius / SHOT_LINE_RADIUS, 1, radius / SHOT_LINE_RADIUS);
+    }
+  }
 
   public getTeamHealthState(time = this.currentTime): ReplayTeamHealthState | null {
     return this.timeline ? selectReplayHud(this.timeline, time) : null;
@@ -174,6 +195,7 @@ export class ReplayLayer {
 
   public clear(): void {
     this.timeline = null;
+    this.selectedEntityId = null;
     this.currentTime = 0;
 
     for (const entry of this.tankEntries.values()) {
@@ -252,6 +274,7 @@ export class ReplayLayer {
     }
 
     applyTankModelToVisual(model, entry.visual);
+    entry.visual.selectionRing.visible = entry.track.entityId === this.selectedEntityId;
     const visualColor = this.getTrackVisualColor(entry.track, isDimmed);
 
     this.setTankVisualAppearance(entry.visual, visualColor, isDimmed);
@@ -476,7 +499,8 @@ export class ReplayLayer {
     track: ReplayMovementTrack,
     timeline: ReplayTimeline,
   ): ReplayShotLineEntry | null {
-    const origin = this.getShotOrigin(event);
+    const pose = sampleTrackAtTime(track, event.time) ?? sampleTrackLatestAtTime(track, event.time);
+    const origin = this.getShotOrigin(event) ?? (pose ? mapReplayPositionToThree(pose.x, pose.y + 3, pose.z, this.calibration) : null);
 
     if (!origin) {
       return null;
@@ -489,9 +513,10 @@ export class ReplayLayer {
     }
 
     const material = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(this.getTeamColor(track.teamId, 0)),
+      color: new THREE.Color(this.isEnemyTrack(track) ? '#ffac86' : '#fff4a3'),
       transparent: true,
       opacity: 0,
+      depthTest: false,
       depthWrite: false,
     });
     const object = this.createShotBeam(origin, target, material);
@@ -575,7 +600,7 @@ export class ReplayLayer {
     const candidates = points.filter((point) => {
       return point.time >= event.time && point.time <= event.time + SHOT_LINE_LIFETIME_SECONDS;
     });
-    const targetPoint = candidates[candidates.length - 1] ?? points[points.length - 1];
+    const targetPoint = candidates[candidates.length - 1];
 
     if (!targetPoint) {
       return null;
@@ -597,15 +622,16 @@ export class ReplayLayer {
       return null;
     }
 
-    const targetReplayX = event.originX! + event.directionX! * SHOT_LINE_LENGTH;
-    const targetReplayY = event.originY! + event.directionY! * SHOT_LINE_LENGTH;
-    const targetReplayZ = event.originZ! + event.directionZ! * SHOT_LINE_LENGTH;
+    // Transform a unit displacement independently: origin may be reconstructed from the tank pose.
+    const displacement = shotRayEnd({ x: 0, y: 0, z: 0 },
+      { x: event.directionX!, y: event.directionY!, z: event.directionZ! }, SHOT_LINE_LENGTH);
+    if (!displacement) return null;
     const target = mapReplayPositionToThree(
-      targetReplayX,
-      targetReplayY,
-      targetReplayZ,
+      displacement.x,
+      displacement.y,
+      displacement.z,
       this.calibration,
-    );
+    ).add(origin);
 
     if (!Number.isFinite(target.x) || !Number.isFinite(target.y) || !Number.isFinite(target.z)) {
       return null;
@@ -812,6 +838,7 @@ export class ReplayLayer {
     const labelOpacity = dimmed ? INVISIBLE_LABEL_OPACITY : 1;
 
     visual.root.traverse((object) => {
+      if (object === visual.selectionRing) return;
       if (object instanceof THREE.Sprite) {
         if (object.name === 'manual_tank_label') {
           this.setMaterialOpacity(object.material, labelOpacity);
@@ -861,6 +888,11 @@ export class ReplayLayer {
     color: string,
     opacity: number,
   ): void {
+    if (this.selectedEntityId !== null) {
+      const selected = group.userData.replayEntityId === this.selectedEntityId;
+      if (selected) { color = '#facc15'; opacity = Math.max(opacity, 0.95); }
+      else opacity *= 0.25;
+    }
     group.traverse((object) => {
       if (!(object instanceof THREE.Line || object instanceof THREE.LineSegments)) {
         return;

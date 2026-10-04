@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<title>Проверка PNG с табличкой</title>
+<style>body{background:#15171c;color:#eee;font:16px Arial;margin:20px}#viewer{width:600px;height:300px}img{width:700px;max-width:95vw}a{color:#facc15}</style>
+<h1>Проверка настоящего PNG-экспорта</h1>
+<p id="status">Загрузка карты…</p>
+<a id="download" download="text-sign-export.png" hidden>Скачать проверочный PNG</a>
+<div id="viewer"></div>
+<img id="png" alt="Экспорт карты с табличкой Вперёд — Держать позицию">
+<script type="module">
+import {ViewerEngine} from '../src/engine/ViewerEngine.ts';
+const engine=new ViewerEngine(document.querySelector('#viewer'));
+window.addEventListener('pagehide',()=>engine.dispose());
+try {
+  await engine.loadMap('18_canal_cn');
+  engine.syncOnlineStrokes([{id:'png-text-fixture',style:'text',text:'Вперёд\nДержать позицию',color:'#facc15',width:12,arrowMode:'none',points:[{x:0,y:20,z:0}]}]);
+  // Capture the real export canvas instead of asking the browser to save a file.
+  // All scene rendering, projection and annotation drawing use the production code.
+  engine.tacticalPngExportService.downloadCanvas=async canvas=>{
+    const png=canvas.toDataURL('image/png');
+    document.querySelector('#png').src=png;
+    const download=document.querySelector('#download');download.href=png;download.hidden=false;
+    document.querySelector('#status').textContent=`Готов PNG ${canvas.width}×${canvas.height}: две строки текста, фон и рамка.`;
+  };
+  await engine.exportStrategyPng(false);
+  engine.dispose();document.querySelector('#viewer').remove();
+} catch(error) {document.querySelector('#status').textContent=error.message;engine.dispose();}
+</script>
+</html>

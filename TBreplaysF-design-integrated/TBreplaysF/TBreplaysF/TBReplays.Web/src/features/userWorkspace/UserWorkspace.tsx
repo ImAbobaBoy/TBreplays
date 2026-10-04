@@ -1,7 +1,8 @@
+import { initialSwatchPositions, interpolateColor } from '../../domain/DrawingPalette';
 import { createId } from '../../utils/createId';
-import { OnlinePanel, useOnline } from '../online/OnlineRoot';
+import { AccountDialog, OnlinePanel, useOnline } from '../online/OnlineRoot';
 import { useMapCatalog } from '../maps/MapCatalog';
-import { OnlineMapControls } from '../online/OnlineMapControls';
+import { WorkspaceSlides } from './WorkspaceSlides';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AppMode } from '../../app/AppMode';
@@ -62,7 +63,7 @@ type UserWorkspaceProps = {
   onManualTankChange: (tank: ManualTankModel) => void;
   onDeleteSelectedManualTank: () => void;
   onClearManualTanks: () => void;
-  onExportStrategyPng: () => Promise<void>;
+  onExportStrategyPng: (includeReplay?: boolean) => Promise<void>;
   onCaptureStrategySnapshot: () => StrategySnapshot;
   onApplyStrategySnapshot: (snapshot: StrategySnapshot) => void;
   onTankCreated: (tank: ManualTankModel) => void;
@@ -77,16 +78,7 @@ type UserWorkspaceProps = {
   onReplaySpeedChange: (speed: number) => void;
 };
 
-const colorSliderStops = [
-  { position: 0, color: '#ff3b00' },
-  { position: 180, color: '#ffd400' },
-  { position: 380, color: '#00e35f' },
-  { position: 580, color: '#00c9ff' },
-  { position: 740, color: '#1d30ff' },
-  { position: 1000, color: '#ff00c8' },
-];
 
-const initialSwatchPositions = [182, 112, 742, 384, 1000];
 
 const tankTypeOptions: Array<{
   value: TankVisualKey;
@@ -131,19 +123,39 @@ export function UserWorkspace({
   const { maps: availableWorkspaceMaps } = useMapCatalog();
   const [exporting, setExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState('');
+  const [includeReplayInPng, setIncludeReplayInPng] = useState(true);
   const exportPng = async () => {
     setExporting(true); setExportStatus('Готовлю PNG…');
-    try { await onExportStrategyPng(); setExportStatus('PNG готов.'); }
+    try { await onExportStrategyPng(includeReplayInPng); setExportStatus('PNG готов.'); }
     catch (error) { setExportStatus(error instanceof Error ? error.message : 'Не удалось создать PNG.'); }
     finally { setExporting(false); }
   };
-  const [presentEnabled, setPresentEnabled] = useState(false);
+  const presentEnabled = !!online.state.workspace?.presenterId;
+  const ownPresentation = online.state.workspace?.presenterConnectionId === online.state.connectionId;
+  const [workspaceError, setWorkspaceError] = useState('');
+  const [accountOpen, setAccountOpen] = useState(false);
+  const undo = () => { void online.client.undo().catch(error => setWorkspaceError(error instanceof Error ? error.message : 'Не удалось отменить действие.')); };
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z' || event.shiftKey || event.altKey) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+      if (!online.canEdit || online.state.pending || !(online.state.board?.undoCount ?? 0)) return;
+      event.preventDefault(); undo();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [online.canEdit, online.state.pending, online.state.board?.undoCount, online.client]);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
-  const [markerLabel, setMarkerLabel] = useState('амус');
+  const [markerLabel, setMarkerLabel] = useState('');
   const [markerTankType, setMarkerTankType] = useState<TankVisualKey>('heavy');
   const [replays, setReplays] = useState<WorkspaceReplayRow[]>([]);
   const [viewerReady, setViewerReady] = useState(false);
+  const [flightCamera, setFlightCamera] = useState(false);
+  const [cameraSpeed, setCameraSpeed] = useState(3);
+  const [signText, setSignText] = useState('');
+  const [textSize, setTextSize] = useState(10);
   const [selectedSwatchIndex, setSelectedSwatchIndex] = useState(0);
   const [swatchPositions, setSwatchPositions] = useState(initialSwatchPositions);
   const [colorSliderPosition, setColorSliderPosition] = useState(initialSwatchPositions[0]);
@@ -159,7 +171,7 @@ export function UserWorkspace({
   const leader = online.state.users.find(user => user.id === online.state.replay?.leaderId);
 
 
-  const swatchColors = swatchPositions.map(interpolateColor);
+  const swatchColors = swatchPositions.map((position, index) => index === selectedSwatchIndex ? state.drawingColor : interpolateColor(position));
 
   const tankPlacementDefaults = useMemo<ManualTankPlacementDefaults>(() => ({
     label: markerLabel,
@@ -260,14 +272,16 @@ export function UserWorkspace({
 
   return (
     <div className="tbr-design">
+      {accountOpen && <AccountDialog onClose={() => setAccountOpen(false)} />}
       <div className="tbr-app-shell">
         <header className="app-header">
           <div className="header-side side-left">
             <button
               className={presentEnabled ? 'header-side-button presentation-button is-playing' : 'header-side-button presentation-button'}
               type="button"
-              aria-label="Запустить презентацию"
-              onClick={() => setPresentEnabled((current) => !current)}
+              aria-label={presentEnabled ? 'Остановить презентацию' : 'Запустить презентацию'}
+              disabled={!online.canEdit || presentEnabled && !ownPresentation && online.user.role !== 'admin'}
+              onClick={() => void online.client.workspaceCommand({ kind: presentEnabled ? 'stopPresentation' : 'present' }).catch(error => setWorkspaceError(String(error)))}
             >
               <span className="playback-icon-slot" aria-hidden="true">
                 {presentEnabled ? <PauseIcon /> : <PlayIcon />}
@@ -313,8 +327,8 @@ export function UserWorkspace({
             </div>
           </div>
 
-          <div className="header-side side-right">
-            <button className="header-side-button map-config-button" disabled={online.user.role !== 'admin'} onClick={() => onModeChange('debugCalibration')}>Конфигуратор карты</button>
+          <div className="header-side side-right"><button className="header-side-button account-icon-button" type="button" aria-label="Настройки аккаунта" title="Настройки аккаунта" onClick={() => setAccountOpen(true)}>⚙</button>
+            {online.user.role === 'admin' && <button className="header-side-button map-config-button" onClick={() => onModeChange('debugCalibration')}>Конфигуратор карты</button>}
           </div>
         </header>
 
@@ -333,7 +347,7 @@ export function UserWorkspace({
             <section className="panel tools-panel">
               <div className="tools-top">
                 <div className="tools-header">
-                  <span className="panel-label static">Инструменты</span>
+                  <span className="panel-label static">Инструменты</span><button className="undo-button" type="button" title="Отменить последнее своё действие на этом слайде (Ctrl+Z)" disabled={!online.canEdit || online.state.pending || !(online.state.board?.undoCount ?? 0)} onClick={undo}>↶ Отмена</button>
                 </div>
 
                 <div className="controls-block">
@@ -378,13 +392,14 @@ export function UserWorkspace({
                   </div>
                 </div>
 
-                <div className={online.canEdit && state.mapLoaded ? "tools-grid" : "tools-grid online-tools-readonly"} role="toolbar" aria-label="Инструменты">
+                <div className={online.canEdit && state.mapLoaded && !flightCamera ? "tools-grid" : "tools-grid online-tools-readonly"} role="toolbar" aria-label="Инструменты">
                   <ToolSlot tool="select" selectedTool={state.selectedTool} label="Курсор" onSelect={onSelectedToolChange}><CursorIcon /></ToolSlot>
                   <ToolSlot tool="drawLine" selectedTool={state.selectedTool} label="Прямая линия" onSelect={onSelectedToolChange}><LineIcon /></ToolSlot>
                   <ToolSlot tool="draw" selectedTool={state.selectedTool} label="Кривая линия" onSelect={onSelectedToolChange}><CurveIcon /></ToolSlot>
                   <ToolSlot tool="tankPlacement" selectedTool={state.selectedTool} label="Танковые метки" onSelect={onSelectedToolChange}><MarkersIcon /></ToolSlot>
                   <ToolSlot tool="erase" selectedTool={state.selectedTool} label="Ластик" onSelect={onSelectedToolChange}><EraserIcon /></ToolSlot>
-                  <ToolSlot tool="text" selectedTool={state.selectedTool} label="Текст" onSelect={onSelectedToolChange}><TextIcon /></ToolSlot>
+                  <ToolSlot tool="text" selectedTool={state.selectedTool} label="Текстовая табличка" onSelect={onSelectedToolChange}><span className="text-tool-icon">T</span></ToolSlot>
+                  <ToolSlot tool="marker" selectedTool={state.selectedTool} label="Точка на карте" onSelect={onSelectedToolChange}><svg viewBox="0 0 24 24" className="tool-svg"><circle cx="12" cy="12" r="7" fill="currentColor" /></svg></ToolSlot>
                 </div>
               </div>
 
@@ -392,6 +407,7 @@ export function UserWorkspace({
                 <span className="panel-label static">Настройки инструмента</span>
                 <div className="tool-settings-content" aria-live="polite">
                   <ToolSettings
+                    signText={signText} textSize={textSize} onSignTextChange={setSignText} onTextSizeChange={setTextSize}
                     state={state}
                     selectedTank={selectedTank}
                     markerLabel={markerLabel}
@@ -476,17 +492,24 @@ export function UserWorkspace({
             <div className="map-panel">
               <span className="panel-label">Карта</span>
               <div className="map-export-controls">
-                <button type="button" disabled={!viewerReady || !state.mapLoaded || exporting}
-                  title="Сохранить карту сверху с рисунками и ручными танковыми метками, 2048 × 2048"
+                <button className="toolbar-add-button camera-mode-button" type="button" aria-pressed={flightCamera} onClick={() => setFlightCamera(value => !value)}>{flightCamera ? 'Камера: полёт' : 'Камера: орбита'}</button>
+                {flightCamera && <><select className="camera-speed-select" aria-label="Скорость камеры" value={cameraSpeed} onChange={event => setCameraSpeed(Number(event.target.value))}>{[1, 2, 3, 4, 5].map(speed => <option key={speed} value={speed}>Скорость {speed}</option>)}</select><span className="camera-help">WASD · ЛКМ · колесо · 1–5 · Q/E ↕</span></>}
+                {online.state.status === 'offline' && <button onClick={() => void online.client.start()}>Подключиться</button>}
+                {(workspaceError || online.state.message) && <span role="alert">{workspaceError || online.state.message}</span>}
+                <label className="replay-export-toggle"><input type="checkbox" checked={includeReplayInPng} onChange={event => setIncludeReplayInPng(event.target.checked)} /><span className="toggle-check" aria-hidden="true">✓</span><span>С реплеем</span></label>
+                <button className="toolbar-add-button export-png-button" type="button" disabled={!viewerReady || !state.mapLoaded || exporting}
+                  title="Сохранить карту сверху с рисунками, метками и выбранным слоем реплея, 2048 × 2048"
                   onClick={() => void exportPng()}>{exporting ? 'Создаю PNG…' : 'Скрин карты (PNG)'}</button>
                 {exportStatus && <span role="status">{exportStatus}</span>}
               </div>
               <div className="viewer-slot">
                 <ViewerHost
+                  cameraMode={flightCamera ? 'flight' : 'orbit'} cameraSpeed={cameraSpeed} onCameraSpeedChange={setCameraSpeed}
                   mode={state.mode}
                   selectedTool={state.selectedTool}
                   drawingColor={state.drawingColor}
                   drawingWidth={state.drawingWidth}
+                  drawingText={signText} textSize={textSize}
                   drawingLineStyle={state.drawingLineStyle}
                   drawingArrowMode={state.drawingArrowMode}
                   manualTanks={state.manualTanks}
@@ -518,7 +541,7 @@ export function UserWorkspace({
 
           <aside className="right-column side-column">
             <OnlinePanel />
-            <OnlineMapControls />
+            <WorkspaceSlides />
           </aside>
         </main>
       </div>
@@ -552,6 +575,7 @@ function ToolSlot({
 }
 
 function ToolSettings({
+  signText, textSize, onSignTextChange, onTextSizeChange,
   state,
   selectedTank,
   markerLabel,
@@ -567,6 +591,7 @@ function ToolSettings({
   onUpdateSelectedTankPose,
   onSelectedToolChange,
 }: {
+  signText: string; textSize: number; onSignTextChange: (text: string) => void; onTextSizeChange: (size: number) => void;
   state: AppState;
   selectedTank: ManualTankModel | null;
   markerLabel: string;
@@ -583,6 +608,17 @@ function ToolSettings({
   onUpdateSelectedTankPose: (patch: Partial<ManualTankModel['pose']>) => void;
 }) {
   const { canEdit } = useOnline();
+  if (state.selectedTool === 'text') return (
+    <fieldset disabled={!canEdit} className="marker-settings tank-settings-fieldset">
+      <textarea className="marker-label-input text-sign-input" aria-label="Текст таблички" placeholder="Введите текст и нажмите на карту" maxLength={500} rows={3}
+        value={signText} onChange={event => onSignTextChange(event.target.value.replace(/\r/g, '').split('\n').slice(0, 12).join('\n'))} />
+      <label className="stroke-setting-header" htmlFor="text-sign-size">Размер текста <span className="stroke-setting-value">{textSize}</span></label>
+      <input id="text-sign-size" aria-label="Размер текста" className="stroke-size-slider" type="range" min={2} max={30} value={textSize}
+        style={{ '--stroke-progress': `${(textSize - 2) / 28 * 100}%` } as React.CSSProperties} onChange={event => onTextSizeChange(event.target.valueAsNumber)} />
+      <p className="tiny-meta">ЛКМ — поставить табличку. Цвет берётся из палитры. Ластик + ПКМ — удалить.</p>
+    </fieldset>
+  );
+  if (state.selectedTool === 'erase') return <p className="tiny-meta">Зажмите ПКМ и ведите по линиям, точкам, танковым меткам и табличкам.</p>;
   if ((state.selectedTool === 'drawLine' || state.selectedTool === 'draw')) {
     const progress = (Math.max(1, Math.min(10, state.drawingWidth)) - 1) / 9 * 100;
 
@@ -689,42 +725,6 @@ function AngleControl({ label, value, onChange }: { label: string; value: number
   </label>;
 }
 
-function interpolateColor(position: number): string {
-  const clamped = Math.max(0, Math.min(1000, position));
-
-  for (let index = 0; index < colorSliderStops.length - 1; index += 1) {
-    const current = colorSliderStops[index];
-    const next = colorSliderStops[index + 1];
-
-    if (clamped >= current.position && clamped <= next.position) {
-      const factor = (clamped - current.position) / (next.position - current.position);
-      const start = hexToRgb(current.color);
-      const end = hexToRgb(next.color);
-      return rgbToHex({
-        r: start.r + (end.r - start.r) * factor,
-        g: start.g + (end.g - start.g) * factor,
-        b: start.b + (end.b - start.b) * factor,
-      });
-    }
-  }
-
-  return colorSliderStops[colorSliderStops.length - 1].color;
-}
-
-function hexToRgb(hex: string) {
-  const normalized = hex.replace('#', '');
-  return {
-    r: Number.parseInt(normalized.slice(0, 2), 16),
-    g: Number.parseInt(normalized.slice(2, 4), 16),
-    b: Number.parseInt(normalized.slice(4, 6), 16),
-  };
-}
-
-function rgbToHex({ r, g, b }: { r: number; g: number; b: number }) {
-  const parts = [r, g, b].map((value) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0'));
-  return `#${parts.join('')}`;
-}
-
 function formatDuration(time: number) {
   const minutes = Math.floor(time / 60);
   const seconds = Math.floor(time - minutes * 60);
@@ -755,7 +755,6 @@ function LineIcon() { return <svg viewBox="0 0 640 512" className="tool-svg tool
 function CurveIcon() { return <svg viewBox="0 0 512 512" className="tool-svg tool-svg--fill"><path fill="currentColor" d="M183.3 21.4C198.3 7.7 218 0 238.4 0h1c44.5 0 80.6 36.1 80.6 80.6 0 21.4-8.5 41.9-23.6 57L89.5 344.4c-6.1 6.1-9.5 14.4-9.5 23 0 18 14.6 32.6 32.6 32.6 8.6 0 16.9-3.4 23-9.5L374.5 151.6c15.1-15.1 35.6-23.6 57-23.6 44.5 0 80.6 36.1 80.6 80.6 0 21.4-8.5 41.9-23.6 57L384.2 369.8c-10.4 10.3-16.2 24.4-16.2 39 0 30.5 24.7 55.2 55.2 55.2h4.4c5.6 0 11.2-.9 16.6-2.7l36.2-12.1c12.6-4.2 26.2 2.6 30.4 15.2s-2.6 26.2-15.2 30.4l-36.2 12.1c-10.2 3.4-21 5.2-31.8 5.2h-4.4c-57 0-103.2-46.2-103.2-103.2 0-27.4 10.9-53.6 30.2-73L454.5 231.6c6.1-6.1 9.5-14.4 9.5-23 0-18-14.6-32.6-32.6-32.6-8.6 0-16.9 3.4-23 9.5L169.5 424.4c-15.1 15.1-35.6 23.6-57 23.6-44.5 0-80.6-36.1-80.6-80.6 0-21.4 8.5-41.9 23.6-57L262.5 103.6c6.1-6.1 9.5-14.4 9.5-23 0-18-14.6-32.6-32.6-32.6h-1c-8.4 0-16.5 3.2-22.7 8.8L40.2 217.7c-9.8 9-25 8.3-33.9-1.5s-8.3-25 1.5-33.9Z" /></svg>; }
 function MarkersIcon() { return <svg viewBox="0 0 32 32" fill="none" className="tool-svg tool-svg--fill tool-svg--markers"><g fill="currentColor"><g transform="translate(8.2 8) rotate(42)"><rect x="-4.65" y="-4.7" width="2.55" height="9.4" rx=".35" /><rect x="-1.25" y="-4.7" width="2.55" height="9.4" rx=".35" /><rect x="2.15" y="-4.7" width="2.55" height="9.4" rx=".35" /></g><g transform="translate(21.4 8.7) rotate(42)"><rect x="-4.8" y="-5" width="4.3" height="10" rx=".35" /><rect x=".5" y="-5" width="4.3" height="10" rx=".35" /></g><path d="m9.2 15.2 6 6.9-6 6.9-6-6.9Z" /><path d="M17 18h12.1l-6.05 10.7Z" /></g></svg>; }
 function EraserIcon() { return <svg viewBox="0 0 576 512" className="tool-svg tool-svg--fill"><path fill="currentColor" d="M0 304c0 15.4 6.1 30.1 17 41l116.3 116.3c12 12 28.3 18.7 45.3 18.7H512c17.7 0 32-14.3 32-32s-14.3-32-32-32H392l20-20L148 132C104.3 175.7 60.7 219.3 17 263c-10.9 10.9-17 25.6-17 41Zm193.3-126.7L412 396l115-115c10.9-10.9 17-25.6 17-41s-6.1-30.1-17-41L345 17C334.1 6.1 319.4 0 304 0s-30.1 6.1-41 17L148 132Z" /></svg>; }
-function TextIcon() { return <svg viewBox="0 0 384 512" className="tool-svg tool-svg--fill tool-svg--text"><path fill="currentColor" d="M64 96v32c0 17.7-14.3 32-32 32S0 145.7 0 128V72c0-22.1 17.9-40 40-40h304c22.1 0 40 17.9 40 40v56c0 17.7-14.3 32-32 32s-32-14.3-32-32V96h-96v320h48c17.7 0 32 14.3 32 32s-14.3 32-32 32H112c-17.7 0-32-14.3-32-32s14.3-32 32-32h48V96Z" /></svg>; }
 function TankMarkerIcon({ type }: { type: TankVisualKey }) {
   if (type === 'heavy') return <svg className="marker-option-icon" viewBox="0 0 24 24"><g fill="currentColor" transform="translate(12 12) rotate(42)"><rect x="-5.15" y="-5.2" width="2.7" height="10.4" rx=".35" /><rect x="-1.35" y="-5.2" width="2.7" height="10.4" rx=".35" /><rect x="2.45" y="-5.2" width="2.7" height="10.4" rx=".35" /></g></svg>;
   if (type === 'medium') return <svg className="marker-option-icon" viewBox="0 0 24 24"><g fill="currentColor" transform="translate(12 12) rotate(42)"><rect x="-4.8" y="-5" width="4.3" height="10" rx=".35" /><rect x=".5" y="-5" width="4.3" height="10" rx=".35" /></g></svg>;

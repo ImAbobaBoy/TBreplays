@@ -1,0 +1,2 @@
+*.sh text eol=lf
+Caddyfile.ip text eol=lf

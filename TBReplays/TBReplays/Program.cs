@@ -8,6 +8,8 @@ using TBReplays.Replays;
 using TBReplays.Sc2;
 using TBReplays.Scg;
 using TBReplays.Terrain;
+using Microsoft.AspNetCore.ResponseCompression;
+using System.IO.Compression;
 
 var builder = WebApplication.CreateBuilder(args);
 // Machine-specific paths stay out of shared configuration and published builds.
@@ -15,6 +17,12 @@ builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, relo
     .AddEnvironmentVariables().AddCommandLine(args);
 
 builder.Services.AddControllers();
+builder.Services.AddResponseCompression(options => {
+    options.EnableForHttps = true;
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[] { "application/octet-stream", "image/vnd-ms.dds" });
+});
+builder.Services.Configure<GzipCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
 builder.AddOnline();
 
 builder.Services.AddEndpointsApiExplorer();
@@ -69,6 +77,9 @@ builder.Services.AddSingleton<ReplayImportService>();
 builder.Services.AddSingleton<ReplaySessionService>();
 
 var app = builder.Build();
+// Compress large map artifacts without touching authenticated account responses.
+app.UseWhen(context => HttpMethods.IsGet(context.Request.Method) && context.Request.Path.StartsWithSegments("/api/maps"),
+    maps => maps.UseResponseCompression());
 
 if (app.Environment.IsDevelopment())
 {

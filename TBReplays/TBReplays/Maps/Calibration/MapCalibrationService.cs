@@ -13,10 +13,10 @@ public sealed class MapCalibrationService
         return new(name, name, replayMapName,
             new(MathF.Max(b[3] - b[0], b[4] - b[1]) / 2),
             new((b[5] - b[2]) / ushort.MaxValue, b[2], "scene-landscape-bbox", 1, "Исходный bbox SC2; предыдущие ручные поправки сохранены отдельно."),
-            new(false, false, true, 0), new(false, false, false, 0), new(0), new(0, false, false),
+            new(false, false, true, 0), new(false, false, true, 0), new(0), new(0, false, false),
             new(textures.GetValueOrDefault("colorTexture") as string, textures.GetValueOrDefault("tileMask") as string,
                 textures.GetValueOrDefault("tileTexture0") as string, textures.Values.OfType<string>().Order().ToArray()),
-            CreateHeightmapStats(heightmap));
+            CreateHeightmapStats(heightmap)) { ReplayCoordinateSystemVersion = 1 };
     }
 
     private const float DefaultHorizontalHalfExtent = 300f;
@@ -113,6 +113,7 @@ public sealed class MapCalibrationService
         MapCalibrationDto calibration,
         CancellationToken cancellationToken)
     {
+        calibration = calibration with { ReplayCoordinateSystemVersion = 1 };
         Directory.CreateDirectory(processedDirectory);
 
         var path = Path.Combine(processedDirectory, "map_calibration.json");
@@ -143,7 +144,13 @@ public sealed class MapCalibrationService
             JsonOptions,
             cancellationToken);
 
-        return calibration ?? throw new InvalidDataException("map_calibration.json повреждён.");
+        if (calibration is null) throw new InvalidDataException("map_calibration.json повреждён.");
+        // SC2 objects use (x, height, -y); replay packets use (x, height, y).
+        // Repair the old scene-import default without overwriting manual transforms.
+        if (calibration.ReplayCoordinateSystemVersion == 0 && calibration.Height.Source == "scene-landscape-bbox"
+            && calibration.ReplayTransform == new MapCalibrationCoordinateTransformDto(false, false, false, 0))
+            calibration = calibration with { ReplayTransform = new(false, false, true, 0) };
+        return calibration with { ReplayCoordinateSystemVersion = 1 };
     }
 
     public TerrainBoundsDto CreateTerrainBounds(MapCalibrationDto calibration)

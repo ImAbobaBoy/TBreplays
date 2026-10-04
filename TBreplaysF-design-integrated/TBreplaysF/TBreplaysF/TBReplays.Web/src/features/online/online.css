@@ -23,3 +23,18 @@
 
 .tbr-design .online-map-controls button { color: #eee; background: #27332b; border: 1px solid #505963; border-radius: 5px; cursor: pointer; }
 .tbr-design .online-map-controls button:disabled { opacity: .45; cursor: default; }
+
+.online-login { background:radial-gradient(ellipse at 30% 10%,#29223855,transparent 55%),#0d0e12; color:#f2f2f5; font-family:"Segoe UI Variable Text","Segoe UI",Arial,sans-serif; padding:24px; box-sizing:border-box; }
+.online-login form { width:min(400px,100%); box-sizing:border-box; gap:16px; padding:30px; background:linear-gradient(145deg,#22262e,#14171d); border:1px solid #ffffff18; border-radius:16px; box-shadow:0 20px 70px #0008; }
+.online-login h1 { font:700 25px "Trebuchet MS","Segoe UI",sans-serif; letter-spacing:.02em; }
+.online-login h2 { color:#aeb5c2; font-size:14px; font-weight:500; }
+.online-login label { color:#aeb5c2; font-size:12px; gap:8px; }
+.online-login input { font:inherit; font-size:14px; padding:11px 12px; border:1px solid #363e4b; border-radius:8px; background:#11151b; transition:border-color .15s; }
+.online-login input:focus-visible { outline:1px solid #938bb8; border-color:#938bb8; }
+.online-login button { padding:11px 14px; background:linear-gradient(180deg,#303640,#222730); border:1px solid #404957; border-radius:8px; color:#f2f2f5; font:600 13px "Trebuchet MS","Segoe UI",sans-serif; transition:background .15s,border-color .15s; }
+.online-login button:hover:not(:disabled) { background:#394250; border-color:#606a7b; }
+.online-login button:focus-visible { outline:2px solid #938bb8; outline-offset:3px; }
+.online-login [role=status] { color:#dacfee; margin:0; font-size:12px; line-height:1.5; }
+.online-login [role=status]:empty { display:none; }
+.online-login small, .online-login p { color:#9296a0; font-size:12px; line-height:1.5; }
+@media(max-height:560px) { .online-login { align-items:start; } }

@@ -12,12 +12,18 @@ import type {
   ManualTankPlacementDefaults,
 } from '../domain/TankModels';
 import { ViewerEngine } from './ViewerEngine';
+import type { CameraMode } from './FreeFlightCamera';
 
 type ViewerHostProps = {
+  cameraMode?: CameraMode;
+  cameraSpeed?: number;
+  onCameraSpeedChange?: (speed: number) => void;
   mode: AppMode;
   selectedTool: ViewerTool;
   drawingColor: string;
   drawingWidth: number;
+  drawingText?: string;
+  textSize?: number;
   drawingLineStyle: DrawingLineStyle;
   drawingArrowMode: DrawingArrowMode;
   manualTanks: ManualTankModel[];
@@ -31,10 +37,12 @@ type ViewerHostProps = {
 };
 
 export function ViewerHost({
+  cameraMode = 'orbit', cameraSpeed = 3, onCameraSpeedChange,
   mode,
   selectedTool,
   drawingColor,
   drawingWidth,
+  drawingText = '', textSize = 10,
   drawingLineStyle,
   drawingArrowMode,
   manualTanks,
@@ -56,11 +64,15 @@ export function ViewerHost({
 
     const engine = new ViewerEngine(containerRef.current);
     engineRef.current = engine;
+    engine.setCameraSpeedHandler(onCameraSpeedChange ?? null);
+    engine.setCameraSpeed(cameraSpeed);
+    engine.setCameraMode(cameraMode);
 
     engine.setMode(mode);
     engine.setTool(selectedTool);
     engine.setDrawingColor(drawingColor);
     engine.setDrawingWidth(drawingWidth);
+    engine.setDrawingText(drawingText, textSize);
     engine.setDrawingLineStyle(drawingLineStyle);
     engine.setDrawingArrowMode(drawingArrowMode);
     engine.setManualTanks(manualTanks);
@@ -86,6 +98,10 @@ export function ViewerHost({
       engineRef.current = null;
     };
   }, []);
+  useEffect(() => { engineRef.current?.setCameraMode(cameraMode); }, [cameraMode]);
+  useEffect(() => { engineRef.current?.setDrawingText(drawingText, textSize); }, [drawingText, textSize]);
+  useEffect(() => { engineRef.current?.setCameraSpeed(cameraSpeed); }, [cameraSpeed]);
+  useEffect(() => { engineRef.current?.setCameraSpeedHandler(onCameraSpeedChange ?? null); }, [onCameraSpeedChange]);
 
   useEffect(() => {
     engineRef.current?.setMode(mode);

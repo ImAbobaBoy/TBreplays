@@ -36,6 +36,15 @@ import { TerrainLayer } from './layers/TerrainLayer';
 import { TacticalPngExportService } from './export/TacticalPngExportService';
 import { ReplayPlaybackController } from './replay/ReplayPlaybackController';
 import { buildReplayTimeline } from './replay/ReplayTrackBuilder';
+import { MapSceneSessionCache } from './MapSceneSessionCache';
+import { FreeFlightCamera, type CameraMode } from './FreeFlightCamera';
+
+type PreparedMap = {
+  terrain: TerrainLayer; surface: SurfaceTextureLayer; objects: ObjectMeshLayer;
+  terrainGroup: THREE.Group; objectGroup: THREE.Group;
+  manifest: MapManifest; calibration: MapCalibration;
+  dispose(): void; bytes(): number;
+};
 
 export class ViewerEngine {
   private readonly container: HTMLDivElement;
@@ -44,6 +53,10 @@ export class ViewerEngine {
   private readonly camera: THREE.PerspectiveCamera;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly controls: OrbitControls;
+  private readonly flightCamera: FreeFlightCamera;
+  private cameraMode: CameraMode = 'orbit';
+  private drawingAllowed = true;
+  private lastFrame = 0;
 
   private readonly mapRoot = new THREE.Group();
   private readonly terrainRoot = new THREE.Group();
@@ -57,9 +70,11 @@ export class ViewerEngine {
 
   private readonly api: TBReplaysApi;
 
-  private readonly terrainLayer: TerrainLayer;
-  private readonly surfaceTextureLayer: SurfaceTextureLayer;
-  private readonly objectMeshLayer: ObjectMeshLayer;
+  private activeMap: PreparedMap | null = null;
+  private readonly mapCache = new MapSceneSessionCache<PreparedMap>(id => this.prepareMap(id));
+  private preloadGeneration = 0;
+  private wantedMapId: string | null = null;
+  private readonly replayPresentations = new Map<string, ReturnType<TBReplaysApi['getReplayPresentation']>>();
   private readonly drawingLayer: DrawingLayer;
   private readonly tankLayer: TankLayer;
   private readonly replayLayer: ReplayLayer;
@@ -79,6 +94,17 @@ export class ViewerEngine {
   private mode: AppMode = 'workspace';
   private disposed = false;
   private replayLoadGeneration = 0;
+  private selectedTool: ViewerTool = 'select';
+  private pointerStart = { x: 0, y: 0 };
+  private readonly beginReplaySelection = (event: PointerEvent) => { this.pointerStart = { x: event.clientX, y: event.clientY }; };
+  private readonly selectReplayTank = (event: MouseEvent) => {
+    if (this.cameraMode === 'flight' || this.selectedTool !== 'select' || Math.hypot(event.clientX - this.pointerStart.x, event.clientY - this.pointerStart.y) > 5) return;
+    const bounds = this.renderer.domElement.getBoundingClientRect();
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2((event.clientX - bounds.left) / bounds.width * 2 - 1,
+      -(event.clientY - bounds.top) / bounds.height * 2 + 1), this.camera);
+    this.replayLayer.selectAt(ray);
+  };
 
   public constructor(container: HTMLDivElement) {
     this.container = container;
@@ -118,21 +144,7 @@ export class ViewerEngine {
     this.controls.maxPolarAngle = Math.PI * 0.48;
     this.controls.update();
 
-    this.terrainLayer = new TerrainLayer(
-      this.terrainRoot,
-      this.api,
-    );
-
-    this.surfaceTextureLayer = new SurfaceTextureLayer(
-      this.api,
-      this.renderer,
-    );
-
-    this.objectMeshLayer = new ObjectMeshLayer(
-      this.objectRoot,
-      this.api,
-      this.renderer,
-    );
+    this.flightCamera = new FreeFlightCamera(this.camera, this.renderer.domElement);
 
 
     this.tankLayer = new TankLayer(
@@ -152,6 +164,9 @@ export class ViewerEngine {
     );
 
     this.replayLayer = new ReplayLayer(this.replayRoot);
+    this.drawingLayer.eraseOther = (raycaster, erased) => this.tankLayer.eraseAt(raycaster, erased);
+    this.renderer.domElement.addEventListener('pointerdown', this.beginReplaySelection);
+    this.renderer.domElement.addEventListener('click', this.selectReplayTank);
 
     this.configureScene();
 
@@ -172,8 +187,28 @@ export class ViewerEngine {
     this.debugRoot.visible = mode === 'debugCalibration';
     this.workspaceRoot.visible = mode === 'workspace';
 
-    this.drawingLayer.setEnabled(mode === 'workspace');
+    this.updateDrawingAccess();
     this.tankLayer.setEnabled(mode === 'workspace');
+  }
+
+  public setCameraMode(mode: CameraMode): void {
+    if (mode === this.cameraMode) return;
+    this.cameraMode = mode;
+    this.flightCamera.setEnabled(mode === 'flight');
+    this.controls.enabled = mode === 'orbit';
+    if (mode === 'orbit') {
+      const distance = Math.max(10, this.camera.position.distanceTo(this.controls.target));
+      this.controls.target.copy(this.camera.position).addScaledVector(this.camera.getWorldDirection(new THREE.Vector3()), distance);
+      this.controls.update();
+    }
+    this.updateDrawingAccess();
+  }
+  public setCameraSpeed(speed: number): void { this.flightCamera.setSpeed(speed); }
+  public setCameraSpeedHandler(handler: ((speed: number) => void) | null): void { this.flightCamera.onSpeedChanged = handler; }
+  private updateDrawingAccess(): void {
+    const allowed = this.drawingAllowed && this.mode === 'workspace' && this.cameraMode === 'orbit';
+    this.drawingLayer.setEnabled(allowed); this.tankLayer.setEditable(allowed);
+    if (this.cameraMode === 'flight') this.controls.enabled = false;
   }
 
   public getCurrentCalibration(): MapCalibration | null {
@@ -181,6 +216,7 @@ export class ViewerEngine {
   }
 
   public setTool(tool: ViewerTool): void {
+    this.selectedTool = tool;
     this.drawingLayer.setTool(tool);
     this.tankLayer.setTool(tool);
   }
@@ -192,6 +228,7 @@ export class ViewerEngine {
   public setDrawingWidth(width: number): void {
     this.drawingLayer.setWidth(width);
   }
+  public setDrawingText(text: string, size: number): void { this.drawingLayer.setText(text, size); }
 
   public setDrawingLineStyle(lineStyle: DrawingLineStyle): void {
     this.drawingLayer.setLineStyle(lineStyle);
@@ -202,8 +239,7 @@ export class ViewerEngine {
   }
 
   public setOnlineDrawingAccess(allowed: boolean): void {
-    this.drawingLayer.setEnabled(allowed && this.mode === 'workspace');
-    this.tankLayer.setEditable(allowed && this.mode === 'workspace');
+    this.drawingAllowed = allowed; this.updateDrawingAccess();
   }
   public setTankOnlineHandlers(handlers: import('./layers/TankLayer').TankOnlineHandlers | null): void {
     this.tankLayer.setOnlineHandlers(handlers);
@@ -259,7 +295,7 @@ export class ViewerEngine {
   }
 
 
-  public async exportStrategyPng(): Promise<string> {
+  public async exportStrategyPng(includeReplay = true): Promise<string> {
     if (!this.currentManifest) {
       throw new Error('Сначала загрузи карту, потом экспортируй тактику.');
     }
@@ -272,6 +308,7 @@ export class ViewerEngine {
       renderer: this.renderer,
       mapRoot: this.mapRoot,
       replayRoot: this.replayRoot,
+      includeReplay,
       debugRoot: this.debugRoot,
       workspaceRoot: this.workspaceRoot,
       calibration: this.currentCalibration,
@@ -317,7 +354,14 @@ export class ViewerEngine {
     }
 
     const generation = ++this.replayLoadGeneration;
-    const presentation = await this.api.getReplayPresentation(safeReplayId);
+    let pending = this.replayPresentations.get(safeReplayId);
+    if (!pending) {
+      pending = this.api.getReplayPresentation(safeReplayId).catch(error => {
+        this.replayPresentations.delete(safeReplayId); throw error;
+      });
+      this.replayPresentations.set(safeReplayId, pending);
+    }
+    const presentation = await pending;
     if (this.disposed || generation !== this.replayLoadGeneration) throw new Error('Загрузка реплея отменена.');
     const timeline = buildReplayTimeline(safeReplayId, presentation);
 
@@ -422,50 +466,40 @@ export class ViewerEngine {
 
     if (this.disposed) throw new Error('Просмотрщик уже закрыт');
     this.clearMap();
+    this.wantedMapId = safeMapId;
     const generation = this.mapLoadGeneration;
     const checkCurrent = () => { if (this.disposed || generation !== this.mapLoadGeneration) throw new Error('Загрузка карты отменена'); };
 
-    const manifest = await this.api.getMapManifest(safeMapId);
+    const prepared = await this.mapCache.get(safeMapId);
     checkCurrent();
-    const calibration = await this.tryLoadCalibration(
-      safeMapId,
-      manifest,
-    );
-
-    checkCurrent();
+    const { manifest, calibration } = prepared;
+    this.activeMap = prepared;
+    this.terrainRoot.add(prepared.terrainGroup);
+    this.objectRoot.add(prepared.objectGroup);
     this.currentMapId = safeMapId;
     this.currentManifest = manifest;
     this.currentCalibration = calibration;
 
     this.applyCalibration(calibration);
 
-    const terrainTexture = await this.tryLoadTerrainTexture(
-      safeMapId,
-      calibration,
-    );
-
-    checkCurrent();
-    this.terrainLayer.setTexture(terrainTexture);
-
-    await this.terrainLayer.load(manifest, calibration);
-
-    checkCurrent();
     this.focusCameraOnObject(this.terrainRoot);
-    this.controls.enabled = true;
+    this.controls.enabled = this.cameraMode === 'orbit';
     this.replayLayer.setCalibration(calibration);
 
-    await this.objectMeshLayer.load(safeMapId, new THREE.Box3().setFromObject(this.terrainRoot));
-    checkCurrent();
-
-    this.focusCameraOnObject(this.terrainRoot);
+    this.mapCache.trim(safeMapId);
   }
 
   public clearMap(): void {
     this.mapLoadGeneration++;
-    this.controls.enabled = true;
-    this.surfaceTextureLayer.clear();
-    this.terrainLayer.clear();
-    this.objectMeshLayer.clear();
+    this.preloadGeneration++;
+    this.controls.enabled = this.cameraMode === 'orbit';
+    this.terrainRoot.clear();
+    this.objectRoot.clear();
+    this.activeMap = null;
+    this.wantedMapId = null;
+    this.currentMapId = null;
+    this.currentManifest = null;
+    this.currentCalibration = null;
     this.drawingLayer.clear();
     this.tankLayer.clear();
 
@@ -478,17 +512,19 @@ export class ViewerEngine {
     }
 
     this.currentCalibration = calibration;
+    if (!this.activeMap) return;
+    this.activeMap.calibration = calibration;
     this.applyCalibration(calibration);
 
     const terrainTexture = await this.tryLoadTerrainTexture(
       this.currentMapId,
-      calibration,
+      calibration, this.activeMap.surface,
     );
 
-    this.terrainLayer.setTexture(terrainTexture);
+    this.activeMap.terrain.setTexture(terrainTexture);
 
-    await this.terrainLayer.load(this.currentManifest, calibration);
-    await this.objectMeshLayer.load(this.currentMapId, new THREE.Box3().setFromObject(this.terrainRoot));
+    await this.activeMap.terrain.load(this.currentManifest, calibration);
+    await this.activeMap.objects.load(this.currentMapId, new THREE.Box3().setFromObject(this.terrainRoot));
 
     this.replayLayer.setCalibration(calibration);
   }
@@ -512,15 +548,19 @@ export class ViewerEngine {
     }
 
     this.disposed = true;
+    this.renderer.domElement.removeEventListener('pointerdown', this.beginReplaySelection);
+    this.renderer.domElement.removeEventListener('click', this.selectReplayTank);
     this.mapLoadGeneration++;
     this.replayLoadGeneration++;
 
     this.resizeObserver.disconnect();
     this.renderer.setAnimationLoop(null);
+    this.flightCamera.dispose();
 
-    this.surfaceTextureLayer.dispose();
-    this.terrainLayer.dispose();
-    this.objectMeshLayer.dispose();
+    this.preloadGeneration++;
+    this.terrainRoot.clear(); this.objectRoot.clear();
+    this.mapCache.dispose();
+    this.replayPresentations.clear();
     this.drawingLayer.dispose();
     this.tankLayer.dispose();
     this.replayLayer.dispose();
@@ -622,9 +662,10 @@ export class ViewerEngine {
   private async tryLoadTerrainTexture(
     mapId: string,
     calibration: MapCalibration | null,
+    surface: SurfaceTextureLayer,
   ): Promise<THREE.Texture | null> {
     try {
-      return await this.surfaceTextureLayer.load(
+      return await surface.load(
         mapId,
         calibration,
       );
@@ -633,6 +674,72 @@ export class ViewerEngine {
 
       return null;
     }
+  }
+
+  public preloadMaps(ids: string[]): void {
+    const generation = ++this.preloadGeneration;
+    // One background map at a time; foreground requests share an in-flight load.
+    void (async () => {
+      for (const id of new Set(ids)) {
+        if (this.disposed || generation !== this.preloadGeneration) return;
+        if (this.mapCache.has(id)) continue;
+        await new Promise(resolve => window.setTimeout(resolve, 100));
+        if (this.disposed || generation !== this.preloadGeneration) return;
+        try {
+          await this.mapCache.get(id, false);
+          this.mapCache.trim(this.wantedMapId ?? this.currentMapId);
+          if (!this.mapCache.has(id)) return; // Visited maps already use the available budget.
+        }
+        catch (error) { if (!this.disposed) console.warn('Фоновая загрузка карты:', id, error); }
+      }
+    })();
+  }
+
+  private async prepareMap(id: string): Promise<PreparedMap> {
+    const terrainGroup = new THREE.Group(), objectGroup = new THREE.Group();
+    const terrain = new TerrainLayer(terrainGroup, this.api);
+    const surface = new SurfaceTextureLayer(this.api, this.renderer);
+    const objects = new ObjectMeshLayer(objectGroup, this.api, this.renderer);
+    const dispose = () => { terrain.dispose(); objects.dispose(); surface.dispose(); };
+    try {
+      const manifest = await this.api.getMapManifest(id);
+      const calibration = await this.tryLoadCalibration(id, manifest);
+      if (this.disposed) throw new Error('Просмотрщик закрыт.');
+      const results = await Promise.allSettled([
+        this.tryLoadTerrainTexture(id, calibration, surface).then(texture => {
+          if (!texture) throw new Error('Не удалось загрузить поверхность карты. Повторите загрузку.');
+          terrain.setTexture(texture);
+        }),
+        terrain.load(manifest, calibration).then(() => objects.load(id, new THREE.Box3().setFromObject(terrainGroup))),
+      ]);
+      const failed = results.find(result => result.status === 'rejected');
+      if (failed?.status === 'rejected') throw failed.reason;
+      if (this.disposed) throw new Error('Просмотрщик закрыт.');
+      return { terrain, surface, objects, terrainGroup, objectGroup, manifest, calibration, dispose,
+        bytes: () => this.estimateMapBytes([terrainGroup, objectGroup]) };
+    } catch (error) { dispose(); throw error; }
+  }
+
+  private estimateMapBytes(roots: THREE.Group[]): number {
+    let bytes = 0;
+    const seen = new Set<unknown>();
+    for (const root of roots) root.traverse(object => {
+      if (!(object instanceof THREE.Mesh)) return;
+      if (!seen.has(object.geometry)) {
+        seen.add(object.geometry);
+        for (const attribute of Object.values(object.geometry.attributes) as THREE.BufferAttribute[]) bytes += attribute.array.byteLength;
+        bytes += object.geometry.index?.array.byteLength ?? 0;
+      }
+      for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+        if (!material) continue;
+        const texture = (material as THREE.MeshStandardMaterial).map;
+        if (!texture || seen.has(texture)) continue;
+        seen.add(texture);
+        const image = texture.image as { width?: number; height?: number } | undefined;
+        bytes += (image?.width ?? 0) * (image?.height ?? 0) * 4 * 4 / 3;
+      }
+    });
+    return bytes;
   }
 
   private focusCameraOnObject(object: THREE.Object3D): void {
@@ -770,7 +877,10 @@ export class ViewerEngine {
       this.notifyReplayPlaybackChanged(playback, false, timestamp);
     }
 
-    this.controls.update();
+    if (this.cameraMode === 'flight') this.flightCamera.update(this.lastFrame ? (timestamp - this.lastFrame) / 1000 : 0);
+    else this.controls.update();
+    this.lastFrame = timestamp;
+    this.replayLayer.updateView(this.camera, this.renderer.domElement.clientHeight);
     this.renderer.render(this.scene, this.camera);
   }
 

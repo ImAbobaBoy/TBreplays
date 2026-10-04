@@ -9,7 +9,7 @@ namespace TBReplays.Controllers;
 [ApiController, Route("api/users"), Authorize(Roles = OnlineRoles.Admin)]
 public sealed class OnlineUsersController(UserManager<OnlineUser> users, OnlineUserStore store,
     OnlineFiles files, OnlineSecurity security, OnlineConnections connections, ReplaySyncService replays,
-    IHubContext<SketchHub> hub, ILogger<OnlineUsersController> logger) : ControllerBase
+    IHubContext<SketchHub> hub, ILogger<OnlineUsersController> logger, WorkspaceService workspace) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await store.ListAsync(ct));
@@ -37,6 +37,7 @@ public sealed class OnlineUsersController(UserManager<OnlineUser> users, OnlineU
 
         connections.Update(updated);
         await replays.RoleChangedAsync(updated.Id, updated.Role is OnlineRoles.Admin or OnlineRoles.Editor);
+        if (updated.Role == OnlineRoles.Observer) await workspace.EndPresentationAsync(userId: updated.Id);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         try { await hub.Clients.All.SendAsync("UsersChanged", connections.List(), timeout.Token); }
         catch (Exception error) { logger.LogWarning(error, "Role for user {UserId} persisted; UsersChanged broadcast failed", updated.Id); }
@@ -59,6 +60,7 @@ public sealed class OnlineUsersController(UserManager<OnlineUser> users, OnlineU
             var result = await users.ResetPasswordAsync(user, token, request.Password);
             if (!result.Succeeded) return BadRequest(new { errors = result.Errors });
             connections.Revoke(user.Id);
+            await workspace.EndPresentationAsync(userId: user.Id);
             return NoContent();
         }
         finally { files.AccountGate.Release(); }

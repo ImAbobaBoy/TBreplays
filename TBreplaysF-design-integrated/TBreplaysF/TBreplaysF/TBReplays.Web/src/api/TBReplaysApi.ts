@@ -43,6 +43,12 @@ export class TBReplaysApi {
   public async getTerrainChunk(url: string): Promise<ArrayBuffer> {
     return await this.getArrayBuffer(url);
   }
+  public async getTerrainChunks(mapId: string): Promise<ArrayBuffer | null> {
+    const response = await authorizedFetch(this.createUrl(`/api/maps/${encodeURIComponent(mapId)}/terrain/chunks.bin`), { cache: 'default' });
+    if (response.status === 404) return null; // Older servers still expose individual chunks.
+    if (!response.ok) throw new Error(`HTTP ${response.status}: terrain chunks`);
+    return response.arrayBuffer();
+  }
 
   public async getTerrainTextureManifest(mapId: string): Promise<TerrainTextureManifest> {
     return await this.getJson<TerrainTextureManifest>(`/api/maps/${mapId}/terrain/texture/manifest`);
@@ -95,7 +101,12 @@ export class TBReplaysApi {
 
   public async getReplayPresentation(replayId: string): Promise<ReplayPresentation> {
     const response = await authorizedFetch(`${this.apiBase}/api/replays/${encodeURIComponent(replayId)}/presentation`, { cache: 'no-store' });
-    if (response.status === 409) throw new Error('Реплей сохранён в старом формате. Импортируйте файл повторно.');
+    if (response.status === 409) {
+      const raw = await response.text();
+      let reason: unknown = raw;
+      try { reason = JSON.parse(raw); } catch { /* ASP.NET may negotiate plain text. */ }
+      throw new Error(typeof reason === 'string' ? reason : 'Реплей сохранён в старом формате. Импортируйте файл повторно.');
+    }
     if (!response.ok) throw new Error(`Не удалось загрузить реплей (HTTP ${response.status}). Требуется backend v2.`);
     const data: ReplayPresentation = await response.json();
     if (data.schemaVersion !== 2 || data.playback?.timeBasis !== 'replaySeconds'
@@ -183,9 +194,7 @@ export class TBReplaysApi {
   }
 
   private async getArrayBuffer(url: string): Promise<ArrayBuffer> {
-    const response = await authorizedFetch(this.createUrl(url), {
-      cache: 'no-store',
-    });
+    const response = await authorizedFetch(this.createUrl(url), { cache: 'default' });
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${url}`);

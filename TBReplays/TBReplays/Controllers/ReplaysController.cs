@@ -127,6 +127,9 @@ public sealed class ReplaysController : ControllerBase
             var result = await _replayImportService.GetParseResultAsync(replayId, cancellationToken);
             if (result.SchemaVersion < 2)
                 return Conflict("Реплей обработан старой версией парсера. Импортируйте исходный .tbreplay повторно.");
+            if (result.ClientVersion?.StartsWith("26.10.", StringComparison.Ordinal) == true
+                && result.ShotProtocolVersion < 1 && result.ShotEvents.Count == 0)
+                return Conflict("Реплей 26.10 импортирован без выстрелов старым парсером. Загрузите исходный .tbreplay повторно.");
             return Ok(ReplayPresentationDto.FromResult(result));
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)

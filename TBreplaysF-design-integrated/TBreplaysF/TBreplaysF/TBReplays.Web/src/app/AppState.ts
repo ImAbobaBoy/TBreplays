@@ -1,3 +1,4 @@
+import { INITIAL_DRAWING_COLOR } from '../domain/DrawingPalette';
 import type { MapCalibration } from '../domain/MapCalibration';
 import type {
   ReplayPlaybackState,
@@ -55,7 +56,7 @@ export const createInitialAppState = (): AppState => ({
   status: 'Готово',
   
   selectedTool: 'select',
-  drawingColor: '#38bdf8',
+  drawingColor: INITIAL_DRAWING_COLOR,
   drawingWidth: 4,
   drawingLineStyle: 'solid',
   drawingArrowMode: 'none',

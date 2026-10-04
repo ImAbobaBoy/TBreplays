@@ -4,7 +4,7 @@ export type DrawingPoint = {
   z: number;
 };
 
-export type DrawingStrokeStyle = 'solid' | 'dashed';
+export type DrawingStrokeStyle = 'solid' | 'dashed' | 'marker' | 'text';
 
 export type DrawingArrowModeValue = 'none' | 'dot' | 'end';
 
@@ -15,4 +15,5 @@ export type DrawingStrokeModel = {
   style: DrawingStrokeStyle;
   arrowMode: DrawingArrowModeValue;
   points: DrawingPoint[];
+  text?: string | null;
 };

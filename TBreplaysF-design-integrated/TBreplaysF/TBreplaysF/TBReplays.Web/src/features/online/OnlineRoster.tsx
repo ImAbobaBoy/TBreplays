@@ -25,11 +25,11 @@ export function OnlineRoster() {
       return live && live.role !== account.role ? { ...account, role: live.role } : account;
     }));
   }, [admin, state.users]);
-  const users = admin ? accounts : state.users;
+  const users = state.users.map(live => ({ ...accounts.find(account => account.id === live.id), ...live }));
   return <div className="online-roster">
-    <div className="users-header"><span className="panel-label static">Пользователи</span><span className="users-count">{users.length}</span></div>
+    <div className="users-header"><span className="panel-label static">Пользователи</span><span className="users-count">({state.users.length} онлайн)</span></div>
     <ul className="compact-roster">{users.map(item => <li key={item.id} className={item.id === user.id ? 'current' : ''}>
-      <div className="user-name-with-status"><i className={state.users.some(x => x.id === item.id) ? 'online-user-dot connected' : 'online-user-dot'} title={state.users.some(x => x.id === item.id) ? 'В сети' : 'Не в сети'} /><strong title={item.login}>{item.login}</strong></div>
+      <div className="user-name-with-status"><i className={state.users.some(x => x.id === item.id) ? 'online-user-dot connected' : 'online-user-dot'} title={state.users.some(x => x.id === item.id) ? 'В сети' : 'Не в сети'} /><strong title={item.login}>{item.login}</strong>{state.users.find(x => x.id === item.id)?.isPresenting && <small className="presenter-badge">Презентует</small>}</div>
       <RoleChip item={item} liveRole={state.users.find(x => x.id === item.id)?.role} editable={admin && item.role !== 'admin'}
         onChanged={updated => { setAccounts(current => current.map(x => x.id === updated.id ? updated : x)); setError(''); }}
         onError={setError} />

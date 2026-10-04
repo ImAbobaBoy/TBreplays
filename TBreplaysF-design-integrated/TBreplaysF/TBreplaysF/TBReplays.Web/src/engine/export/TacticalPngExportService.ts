@@ -3,12 +3,14 @@ import * as THREE from 'three';
 import type { DrawingStrokeModel } from '../../domain/DrawingModels';
 import type { MapCalibration } from '../../domain/MapCalibration';
 import type { ManualTankModel } from '../../domain/TankModels';
+import { paintTextSign } from '../TextSign';
 
 type TacticalPngExportRequest = {
   scene: THREE.Scene;
   renderer: THREE.WebGLRenderer;
   mapRoot: THREE.Group;
   replayRoot: THREE.Group;
+  includeReplay: boolean;
   debugRoot: THREE.Group;
   workspaceRoot: THREE.Group;
   calibration: MapCalibration | null;
@@ -89,29 +91,22 @@ export class TacticalPngExportService {
     const previousDebugVisible = request.debugRoot.visible;
     const previousWorkspaceVisible = request.workspaceRoot.visible;
 
-    request.replayRoot.visible = false;
+    request.replayRoot.visible = request.includeReplay && previousReplayVisible;
     request.debugRoot.visible = false;
     request.workspaceRoot.visible = false;
 
-    request.renderer.setRenderTarget(renderTarget);
-    request.renderer.render(request.scene, exportCamera);
-
     const pixels = new Uint8Array(request.width * request.height * 4);
-    request.renderer.readRenderTargetPixels(
-      renderTarget,
-      0,
-      0,
-      request.width,
-      request.height,
-      pixels,
-    );
-
-    request.renderer.setRenderTarget(previousRenderTarget);
-    request.replayRoot.visible = previousReplayVisible;
-    request.debugRoot.visible = previousDebugVisible;
-    request.workspaceRoot.visible = previousWorkspaceVisible;
-
-    renderTarget.dispose();
+    try {
+      request.renderer.setRenderTarget(renderTarget);
+      request.renderer.render(request.scene, exportCamera);
+      request.renderer.readRenderTargetPixels(renderTarget, 0, 0, request.width, request.height, pixels);
+    } finally {
+      request.renderer.setRenderTarget(previousRenderTarget);
+      request.replayRoot.visible = previousReplayVisible;
+      request.debugRoot.visible = previousDebugVisible;
+      request.workspaceRoot.visible = previousWorkspaceVisible;
+      renderTarget.dispose();
+    }
 
     const canvas = document.createElement('canvas');
     canvas.width = request.width;
@@ -205,7 +200,7 @@ export class TacticalPngExportService {
     height: number,
   ): void {
     for (const stroke of strokes) {
-      if (stroke.points.length < 2) {
+      if (stroke.points.length < (stroke.style === 'marker' || stroke.style === 'text' ? 1 : 2)) {
         continue;
       }
 
@@ -218,6 +213,22 @@ export class TacticalPngExportService {
         );
       });
 
+      if (stroke.style === 'text') {
+        const anchor = stroke.points[0];
+        const offset = this.projectPoint(new THREE.Vector3(anchor.x + stroke.width, anchor.y, anchor.z), camera, width, height);
+        const pixels = Math.hypot(offset.x - projected[0].x, offset.y - projected[0].y);
+        paintTextSign(context, stroke.text ?? '', stroke.color, Math.max(10, pixels), projected[0].x, projected[0].y);
+        continue;
+      }
+      if (stroke.style === 'marker') {
+        context.save();
+        context.fillStyle = stroke.color;
+        context.beginPath();
+        context.arc(projected[0].x, projected[0].y, Math.max(4, stroke.width * 1.35), 0, Math.PI * 2);
+        context.fill();
+        context.restore();
+        continue;
+      }
       context.save();
       context.strokeStyle = stroke.color;
       context.lineWidth = Math.max(2, stroke.width * 1.35);
@@ -531,10 +542,12 @@ export class TacticalPngExportService {
 
     anchor.href = url;
     anchor.download = fileName;
+    document.body.appendChild(anchor);
     anchor.click();
+    anchor.remove();
 
     window.setTimeout(() => {
       URL.revokeObjectURL(url);
-    }, 0);
+    }, 10000);
   }
 }

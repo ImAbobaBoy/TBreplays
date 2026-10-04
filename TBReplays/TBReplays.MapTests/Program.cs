@@ -11,6 +11,70 @@ using TBReplays.Replays;
 using TBReplays.Sc2;
 using TBReplays.Scg;
 using TBReplays.Terrain;
+using TBReplays.ClientGameData;
+using TBReplays.Replays.Parser;
+
+if (args.Contains("--replay-shots-only")) {
+    var payload = new byte[37];
+    BinaryPrimitives.WriteUInt32LittleEndian(payload, 1);
+    BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), 10);
+    BinaryPrimitives.WriteSingleLittleEndian(payload.AsSpan(21), 800);
+    EntityMethodFrame Frame(byte[] data, uint method = 35) => new(0, 0, 1, 1, method, data);
+    if (EntityMethodPacketDecoder.TryDecodeShotFired(Frame(payload)) is null) throw new Exception("Legacy fire packet rejected");
+    var extended = payload.Concat(new byte[8]).ToArray();
+    if (EntityMethodPacketDecoder.TryDecodeShotFired(Frame(extended), 45) is null) throw new Exception("26.10 fire packet rejected");
+    foreach (var length in new[] { 0, 36, 38, 44, 46 })
+        if (EntityMethodPacketDecoder.TryDecodeShotFired(Frame(new byte[length]), 45) is not null) throw new Exception("Wrong fire payload accepted");
+    if (EntityMethodPacketDecoder.TryDecodeShotFired(Frame(extended)) is not null
+        || EntityMethodPacketDecoder.TryDecodeShotFired(Frame(extended, 55), 45) is not null) throw new Exception("Wrong fire profile accepted");
+    BinaryPrimitives.WriteSingleLittleEndian(extended.AsSpan(9), float.NaN);
+    if (EntityMethodPacketDecoder.TryDecodeShotFired(Frame(extended), 45) is not null) throw new Exception("Nonfinite shot accepted");
+    var emptyCatalog = new ClientGameDataCatalog { Version = "26.10.0_ruby", RootPath = "", Localization = new Dictionary<string,string>(),
+        VehiclesByDescriptor = new Dictionary<int,VehicleDefinition>(), VehiclesByKey = new Dictionary<string,VehicleDefinition>(),
+        ExtrasByKey = new Dictionary<string,ExtraDefinition>(), ExtrasByRuntimeId = new Dictionary<int,ExtraDefinition>(),
+        ModulesByRuntimeId = new Dictionary<int,ModuleDefinition>(), Warnings = [] };
+    foreach (var path in args.Where(arg => arg.EndsWith(".tbreplay", StringComparison.OrdinalIgnoreCase))) {
+        using var stream = File.OpenRead(path);
+        var result = new ReplayParseService().Parse(stream, emptyCatalog);
+        if (result.ShotEvents.Count == 0 || result.Playback.Vehicles.Sum(vehicle => vehicle.Shots.Count) != result.ShotEvents.Count
+            || result.ProjectilePoints.Count == 0) throw new Exception("Real fire events lost in parse or presentation: " + path);
+        Console.WriteLine($"PASS: {Path.GetFileName(path)}, {result.ShotEvents.Count} shots, {result.ProjectilePoints.Count} projectile points");
+    }
+    Console.WriteLine("PASS: 37/45-byte fire packets, version gating, invalid payload rejection, full parser/presentation path");
+    return;
+}
+
+if (args.Contains("--replay-calibration-only"))
+{
+    var directory = Path.Combine(Path.GetTempPath(), "replay-calibration-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(directory);
+    try {
+        var calibrationJsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        var service = new MapCalibrationService();
+        var identity = new MapCalibrationCoordinateTransformDto(false, false, false, 0);
+        var original = new MapCalibrationDto("canal", "canal", "canal", new(300),
+            new(.001f, 0, "scene-landscape-bbox", 1, null), new(false, false, true, 0), identity,
+            new(0), new(0, false, false), new(null, null, null, []), new(2, 1, 0, 65535, 0, 0, 65535));
+        async Task CheckTransform(MapCalibrationDto source, MapCalibrationCoordinateTransformDto expected) {
+            await File.WriteAllTextAsync(Path.Combine(directory, "map_calibration.json"), JsonSerializer.Serialize(source, calibrationJsonOptions));
+            var read = await service.ReadAsync(directory, CancellationToken.None);
+            if (read.ReplayTransform != expected) throw new Exception("Replay transform migration changed the wrong calibration");
+            var stored = JsonSerializer.Deserialize<MapCalibrationDto>(await File.ReadAllTextAsync(Path.Combine(directory, "map_calibration.json")), calibrationJsonOptions)!;
+            if (stored != source && stored.ReplayTransform != source.ReplayTransform) throw new Exception("Read rewrote original file");
+        }
+        await CheckTransform(original, new(false, false, true, 0));
+        var manual = new MapCalibrationCoordinateTransformDto(false, true, false, 180);
+        await CheckTransform(original with { ReplayTransform = manual }, manual);
+        await CheckTransform(original with { Height = original.Height with { Source = "replay-fit" } }, identity);
+        await CheckTransform(original with { ReplayTransform = new(false, false, true, 0) }, new(false, false, true, 0));
+        await service.SaveAsync(directory, original, CancellationToken.None);
+        var explicitIdentity = await service.ReadAsync(directory, CancellationToken.None);
+        if (explicitIdentity.ReplayTransform != identity || explicitIdentity.ReplayCoordinateSystemVersion != 1)
+            throw new Exception("Explicitly saved identity transform was overwritten by migration");
+        Console.WriteLine("PASS: scene replay axis repair, manual/legacy calibration preservation, no disk rewrite.");
+    } finally { Directory.Delete(directory, true); }
+    return;
+}
 
 if (args.Contains("--texture-only"))
 {

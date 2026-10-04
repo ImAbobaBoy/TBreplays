@@ -2152,3 +2152,80 @@
 .tbr-design .replay-sync-status{ padding: 6px 12px; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
 .tbr-design .replay-sync-status:empty{ display: none; }
 .tbr-design select.header-action{ min-width: 62px; }
+/* Tools keep their content height; replays shrink first, then the whole column scrolls. */
+.tbr-design .left-column { display:flex; flex-direction:column; overflow-y:auto; min-height:0; }
+.tbr-design .tools-panel { flex:0 0 auto; min-height:350px; grid-template-rows:auto auto; }
+.tbr-design .settings-area, .tbr-design .tool-settings-content { overflow:visible; }
+.tbr-design .replays-panel { flex:1 1 230px; min-height:148px; display:flex; flex-direction:column; }
+.tbr-design .replays-header { flex:none; }
+.tbr-design .replays-content { flex:1; min-height:46px; overflow-y:auto; }
+.tbr-design .right-column { grid-template-rows:minmax(120px,1fr) minmax(0,2fr); }
+.tbr-design .users-panel .online-roster { display:grid; grid-template-rows:auto minmax(0,1fr); min-height:0; overflow:hidden; }
+.tbr-design .users-panel .compact-roster { overflow-y:auto; min-height:0; }
+.tbr-design .users-count { white-space:nowrap; padding:0 6px; }
+.tbr-design .presenter-badge { color:#facc15; font-size:11px; }
+.tbr-design .undo-button { font-size:12px; padding:3px 7px; margin-left:auto; }
+.tbr-design .tools-header { display:flex; align-items:center; gap:8px; }
+.tbr-design .slide-error { color:#fca5a5; font-size:12px; }
+.tbr-design .slide-menu-backdrop { position:fixed; inset:0; z-index:49; }
+.tbr-design .map-card-context-menu { z-index:50; }
+@media (max-width:1000px) { .tbr-design .left-column { max-height:70vh; } }
+.tbr-design .account-icon-button { width:32px; flex:none; padding:0; font-size:20px; margin-right:6px; }
+.tbr-design .users-panel { grid-template-rows:minmax(0,1fr); }
+.tbr-design .users-panel .online-roster { height:100%; }
+.tbr-design .replays-panel { min-height:168px; }
+.tbr-design .replays-content { min-height:64px; }
+
+/* Cards use their content height, including when there is only one row. */
+.tbr-design .classic-grid { align-content:start; grid-auto-rows:max-content; gap:12px; }
+.tbr-design .map-card { align-self:start; height:auto; }
+.tbr-design .map-thumb-wrap { aspect-ratio:1 / 1; max-height:none; }
+.tbr-design .map-thumb-wrap .map-thumb { border-radius:8px; }
+.tbr-design .map-name-input { font-size:12px; margin-top:5px; }
+.tbr-design .undo-button,
+.tbr-design .map-export-controls .export-png-button {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  min-height:30px; padding:0 10px; border:1px solid rgba(255,255,255,.08);
+  border-radius:7px; background:linear-gradient(180deg,#282d35,#1d2128);
+  color:var(--text); font:600 12px var(--display-font); cursor:pointer;
+  box-shadow:0 2px 4px rgba(0,0,0,.15);
+}
+.tbr-design .undo-button { margin-left:auto; min-height:26px; }
+.tbr-design .undo-button:hover:not(:disabled),
+.tbr-design .map-export-controls .export-png-button:hover:not(:disabled) { background:#333a44; border-color:rgba(255,255,255,.18); }
+.tbr-design .undo-button:disabled { opacity:.35; cursor:default; }
+.tbr-design .replay-export-toggle { display:inline-flex; align-items:center; gap:7px; cursor:pointer; font-size:12px; }
+.tbr-design .replay-export-toggle input { position:absolute; opacity:0; width:1px; height:1px; }
+.tbr-design .map-export-controls .toggle-check {
+  display:grid; place-items:center; width:18px; height:18px; border:1px solid #555e6b;
+  border-radius:5px; background:#1d2128; color:transparent;
+}
+.tbr-design .replay-export-toggle input:checked + .toggle-check { background:var(--accent); color:#14171c; border-color:var(--accent); }
+.tbr-design .replay-export-toggle input:focus-visible + .toggle-check { outline:2px solid var(--text); outline-offset:3px; }
+.tbr-design .map-export-controls .replay-export-toggle > span:last-child { background:transparent; }
+.tbr-design .online-modal { backdrop-filter:blur(5px); font-family:var(--display-font); background:rgba(6,8,12,.75); }
+.tbr-design .online-modal > div { background:linear-gradient(145deg,#22262e,#14171d); border:1px solid rgba(255,255,255,.1); border-radius:16px; padding:24px; box-shadow:0 20px 70px #0009; }
+.tbr-design .online-modal h2 { font-size:17px; margin:18px 0 12px; }
+.tbr-design .online-modal label { color:#adb5c3; font-size:12px; }
+.tbr-design .online-modal input, .tbr-design .online-modal select { border:1px solid #363e4b; background:#11151b; border-radius:8px; padding:10px 12px; font:inherit; }
+.tbr-design .online-modal input:focus, .tbr-design .online-modal select:focus { outline:1px solid var(--accent); border-color:var(--accent); }
+.tbr-design .online-modal button { background:linear-gradient(180deg,#303640,#222730); border:1px solid #404957; border-radius:8px; font:600 12px var(--display-font); padding:9px 12px; }
+.tbr-design .online-modal button:hover:not(:disabled) { background:#394250; }
+.tbr-design .online-modal td, .tbr-design .online-modal th { border-color:#333b47; padding:10px 6px; }
+.tbr-design .online-modal th { color:#adb5c3; font-size:12px; }
+.tbr-design .online-modal [role=status] { color:var(--accent); }
+.tbr-design .map-export-controls .camera-mode-button {
+  min-height:30px; padding:0 10px; border:1px solid rgba(255,255,255,.08); border-radius:7px;
+  background:linear-gradient(180deg,#282d35,#1d2128); color:var(--text); font:600 12px var(--display-font);
+}
+.tbr-design .map-export-controls .camera-mode-button[aria-pressed=true] { border-color:var(--accent); background:#353044; }
+.tbr-design .camera-speed-select { min-height:28px; border:1px solid #404957; border-radius:7px; background:#1d2128; color:var(--text); font:600 12px var(--display-font); padding:3px 8px; }
+.tbr-design .map-export-controls .camera-help { color:var(--muted); background:transparent; font-size:10px; }
+.tbr-design canvas.flight-camera { cursor:grab; }
+.tbr-design canvas.flight-camera:active { cursor:grabbing; }
+.tbr-design canvas:focus-visible { outline:1px solid var(--accent); outline-offset:-1px; }
+
+.text-tool-icon { font: 700 22px Georgia, serif; }
+.tbr-design .tools-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.text-sign-input { resize: vertical; min-height: 76px; font: inherit; line-height: 1.4; }
+.tbr-design .tool-settings-content { overflow-y: auto; }

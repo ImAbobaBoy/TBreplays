@@ -10,7 +10,13 @@ export function useOnlineViewer(engine: ViewerEngine | null, loadMap: (id: strin
   const [ready, setReady] = useState<{ engine: ViewerEngine; mapId: string } | null>(null);
   const queue = useRef(Promise.resolve());
   const epoch = useRef(-1);
+  const slideId = online.state.board?.slideId;
   const mapId = online.state.board?.mapId;
+  const preloadIds = [...new Set((online.state.workspace?.slides ?? []).map(slide => slide.mapId))];
+  const preloadKey = JSON.stringify(preloadIds);
+  useEffect(() => {
+    if (engine && ready?.engine === engine) engine.preloadMaps(JSON.parse(preloadKey) as string[]);
+  }, [engine, ready, preloadKey]);
   useEffect(() => {
     setReady(null); epoch.current = -1;
     if (!engine) return;
@@ -25,7 +31,7 @@ export function useOnlineViewer(engine: ViewerEngine | null, loadMap: (id: strin
       } catch { if (active) latest.current.report('Не удалось загрузить общую карту. Проверьте доступность карты на сервере и обновите страницу.'); }
     });
     return () => { active = false; };
-  }, [engine, mapId]);
+  }, [engine, mapId, slideId]);
   useEffect(() => {
     if (!engine || ready?.engine !== engine || ready.mapId !== mapId || !online.state.board) return;
     const board = online.state.board;

@@ -8,6 +8,7 @@ import type {
   ViewerTool,
 } from '../../app/AppState';
 import type { DrawingStrokeModel } from '../../domain/DrawingModels';
+import { createTextSign } from '../TextSign';
 
 export class DrawingLayer {
   private readonly root: THREE.Group;
@@ -30,6 +31,12 @@ export class DrawingLayer {
   private activePoints: THREE.Vector3[] = [];
   private isDrawing = false;
   private enabled = true;
+  private erasing = false;
+  private readonly erased = new Set<string>();
+  private text = '';
+  private textSize = 10;
+  public eraseOther: ((raycaster: THREE.Raycaster, erased: Set<string>) => void) | null = null;
+  public setText(text: string, size: number): void { this.text = text.replace(/\r/g, '').slice(0, 500); this.textSize = Math.max(2, Math.min(30, size)); }
   private onlineHandlers: { upsert: (stroke: DrawingStrokeModel) => void; remove: (id: string) => void } | null = null;
   public setOnlineHandlers(handlers: typeof this.onlineHandlers): void { this.onlineHandlers = handlers; }
 
@@ -68,17 +75,22 @@ export class DrawingLayer {
       this.handlePointerUp,
       true,
     );
+    window.addEventListener('pointercancel', this.handlePointerUp, true);
+    window.addEventListener('blur', this.finishErasing);
+    this.renderer.domElement.addEventListener('contextmenu', this.contextMenu);
   }
 
   public setEnabled(enabled: boolean): void {
     this.enabled = enabled;
 
     if (!enabled) {
+      this.finishErasing();
       this.cancelActiveStroke();
     }
   }
 
   public setTool(tool: ViewerTool): void {
+    if (tool !== 'erase') this.finishErasing();
     this.tool = tool;
 
     if (tool !== 'draw' && tool !== 'drawLine') {
@@ -117,7 +129,7 @@ export class DrawingLayer {
         width: typeof stroke.userData.width === 'number'
           ? stroke.userData.width
           : 4,
-        style: stroke.userData.lineStyle === 'dashed'
+        style: stroke.userData.lineStyle === 'text' ? 'text' : stroke.userData.lineStyle === 'marker' ? 'marker' : stroke.userData.lineStyle === 'dashed'
           ? 'dashed'
           : 'solid',
         arrowMode: stroke.userData.arrowMode === 'end'
@@ -132,8 +144,9 @@ export class DrawingLayer {
             z: point.z,
           }))
           : [],
+        ...(stroke.userData.lineStyle === 'text' ? { text: stroke.userData.text as string } : {}),
       }))
-      .filter((stroke) => stroke.points.length >= 2);
+      .filter((stroke) => stroke.points.length >= (stroke.style === 'marker' || stroke.style === 'text' ? 1 : 2));
   }
 
   public setStrokes(strokes: DrawingStrokeModel[]): void {
@@ -155,7 +168,7 @@ export class DrawingLayer {
         return new THREE.Vector3(point.x, point.y, point.z);
       });
 
-      if (points.length < 2) {
+      if (points.length < (stroke.style === 'marker' || stroke.style === 'text' ? 1 : 2)) {
         continue;
       }
 
@@ -169,6 +182,7 @@ export class DrawingLayer {
       group.userData.width = stroke.width;
       group.userData.lineStyle = stroke.style;
       group.userData.arrowMode = stroke.arrowMode;
+      group.userData.text = stroke.text;
 
       // TODO: Временное MVP-решение.
       // Сейчас slide-local strokes восстанавливаются обратно в THREE.userData, чтобы переключение Slides не тащило полноценную модель стратегии.
@@ -186,6 +200,7 @@ export class DrawingLayer {
   }
 
   public clear(): void {
+    this.finishErasing();
     this.cancelActiveStroke();
 
     for (const child of [...this.root.children]) {
@@ -214,13 +229,34 @@ export class DrawingLayer {
       this.handlePointerUp,
       true,
     );
+    window.removeEventListener('pointercancel', this.handlePointerUp, true);
+    window.removeEventListener('blur', this.finishErasing);
+    this.renderer.domElement.removeEventListener('contextmenu', this.contextMenu);
+    this.eraseOther = null;
   }
 
   private readonly handlePointerDown = (event: PointerEvent): void => {
+    if (this.enabled && this.tool === 'erase' && (event.button === 2 || event.button === 0)) {
+      this.erasing = true; this.erased.clear(); this.controls.enabled = false;
+      this.stopViewerEvent(event); this.eraseStroke(event); return;
+    }
     if (!this.enabled || event.button !== 0) {
       return;
     }
 
+    if (this.tool === 'text' || this.tool === 'marker') {
+      this.stopViewerEvent(event);
+      const point = this.pickTerrainPoint(event);
+      if (point) {
+        if (this.tool === 'text' && !this.text.trim()) return;
+        const marker: DrawingStrokeModel = { id: createId(), color: this.color,
+          width: this.tool === 'text' ? this.textSize : this.width, style: this.tool === 'text' ? 'text' : 'marker',
+          ...(this.tool === 'text' ? { text: this.text } : {}), arrowMode: 'dot', points: [{ x: point.x, y: point.y, z: point.z }] };
+        this.syncStrokes([...this.getStrokes(), marker]);
+        this.onlineHandlers?.upsert(marker);
+      }
+      return;
+    }
     if (this.tool === 'draw' || this.tool === 'drawLine') {
       this.stopViewerEvent(event);
       this.startStroke(event);
@@ -234,6 +270,15 @@ export class DrawingLayer {
   };
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
+    if (this.enabled && this.tool === 'erase') {
+      if (!(event.buttons & 3)) { this.finishErasing(); return; }
+      const rect = this.renderer.domElement.getBoundingClientRect();
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return;
+      if (event.buttons & 2 || this.erasing) {
+        if (!this.erasing) { this.erasing = true; this.erased.clear(); this.controls.enabled = false; }
+        this.stopViewerEvent(event); this.eraseStroke(event); return;
+      }
+    }
     if (!this.isDrawing || (this.tool !== 'draw' && this.tool !== 'drawLine')) {
       return;
     }
@@ -249,12 +294,20 @@ export class DrawingLayer {
   };
 
   private readonly handlePointerUp = (event: PointerEvent): void => {
+    if (this.erasing) { this.stopViewerEvent(event); this.finishErasing(); return; }
     if (!this.isDrawing) {
       return;
     }
 
     this.stopViewerEvent(event);
     this.finishStroke();
+  };
+  private readonly finishErasing = (): void => {
+    if (this.erasing) this.controls.enabled = true;
+    this.erasing = false; this.erased.clear();
+  };
+  private readonly contextMenu = (event: Event): void => {
+    if (this.enabled && this.tool === 'erase') event.preventDefault();
   };
 
   private startStroke(event: PointerEvent): void {
@@ -376,7 +429,16 @@ export class DrawingLayer {
       stroke.remove(child);
       this.disposeObject(child);
     }
+    if (stroke.userData.lineStyle === 'text' && points.length === 1) {
+      const sign = createTextSign(stroke.userData.text ?? '', stroke.userData.color, stroke.userData.width);
+      sign.position.copy(points[0]); sign.position.y += 1; stroke.add(sign); return;
+    }
 
+    if (stroke.userData.lineStyle === 'marker' && points.length === 1) {
+      const marker = new THREE.Mesh(new THREE.SphereGeometry(Math.max(2, stroke.userData.width * .9), 16, 12), new THREE.MeshBasicMaterial({ color: stroke.userData.color, depthTest: false, depthWrite: false }));
+      marker.position.copy(points[0]); marker.renderOrder = 1000; stroke.add(marker);
+      return;
+    }
     if (points.length < 2) {
       return;
     }
@@ -656,11 +718,13 @@ export class DrawingLayer {
     const intersections = this.raycaster.intersectObjects(this.root.children, true);
     const stroke = intersections
       .map((item) => this.findStrokeRoot(item.object))
-      .find((item): item is THREE.Group => item !== null);
+      .find((item): item is THREE.Group => item !== null && !this.erased.has(`stroke:${item.userData.id}`));
 
     if (!stroke) {
+      this.eraseOther?.(this.raycaster, this.erased);
       return;
     }
+    this.erased.add(`stroke:${stroke.userData.id}`);
 
     if (this.onlineHandlers) {
       this.onlineHandlers.remove(stroke.userData.id as string);
@@ -718,6 +782,7 @@ export class DrawingLayer {
       this.disposeObject(child);
     }
 
+    if (object instanceof THREE.Sprite) { object.material.map?.dispose(); object.material.dispose(); }
     if (object instanceof THREE.Mesh) {
       object.geometry.dispose();
 

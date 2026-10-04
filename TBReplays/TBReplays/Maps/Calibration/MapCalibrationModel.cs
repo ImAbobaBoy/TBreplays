@@ -11,7 +11,10 @@ public sealed record MapCalibrationDto(
     MapObjectCalibrationDto Objects,
     MapTextureCalibrationDto Texture,
     MapSurfaceCalibrationDto Surface,
-    MapHeightmapStatsDto HeightmapStats);
+    MapHeightmapStatsDto HeightmapStats)
+{
+    public int ReplayCoordinateSystemVersion { get; init; }
+}
 
 public sealed record MapCalibrationWorldDto(
     float HorizontalHalfExtent);

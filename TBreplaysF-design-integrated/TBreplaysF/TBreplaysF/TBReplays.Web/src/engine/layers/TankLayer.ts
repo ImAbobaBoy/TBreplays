@@ -66,7 +66,6 @@ export class TankLayer {
   private selectedTankId: string | null = null;
   private draggedTankId: string | null = null;
   private draggedAimTargetTankId: string | null = null;
-  private nextTankNumber = 1;
   private placementDefaults: ManualTankPlacementDefaults = {
     label: '',
     visualKey: 'medium',
@@ -212,7 +211,6 @@ export class TankLayer {
 
     this.tanks.clear();
     this.selectedTankId = null;
-    this.nextTankNumber = 1;
   }
 
   public dispose(): void {
@@ -246,6 +244,22 @@ export class TankLayer {
 
     return getTankMuzzleWorldPosition(entry.visual);
   }
+  public eraseAt(raycaster: THREE.Raycaster, erased: Set<string>): void {
+    if (!this.enabled || !this.editable) return;
+    for (const hit of raycaster.intersectObjects(this.root.children, true)) {
+      let visible = true;
+      for (let object: THREE.Object3D | null = hit.object; object && object !== this.root; object = object.parent) {
+        if (!object.visible) { visible = false; break; }
+      }
+      if (!visible) continue;
+      const id = this.findTankId(hit.object);
+      if (!id || erased.has(`tank:${id}`)) continue;
+      erased.add(`tank:${id}`);
+      if (this.onlineHandlers) this.onlineHandlers.remove(id);
+      else this.setManualTanks(this.getManualTanks().filter(tank => tank.id !== id));
+      return;
+    }
+  }
 
   private readonly handlePointerDown = (event: PointerEvent): void => {
     if (!this.enabled || event.button !== 0) {
@@ -253,9 +267,6 @@ export class TankLayer {
     }
 
     if (this.tool === 'erase') {
-      if (!this.editable) return;
-      const id = this.pickTankId(event);
-      if (id) { this.stopViewerEvent(event); this.onlineHandlers?.remove(id); }
       return;
     }
     if (!this.editable && this.tool !== 'select') return;
@@ -487,11 +498,7 @@ export class TankLayer {
 
   private createTankModelAtPoint(point: THREE.Vector3): ManualTankModel {
     const id = createId();
-    const label = this.placementDefaults.label.trim()
-      ? this.placementDefaults.label.trim()
-      : `Танк ${this.nextTankNumber}`;
-
-    this.nextTankNumber += 1;
+    const label = this.placementDefaults.label.trim();
 
     // TODO: Временное MVP-решение.
     // Сейчас новые ручные танки берут label/type/color из локальной панели workspace и всё ещё хранятся только во frontend-памяти.

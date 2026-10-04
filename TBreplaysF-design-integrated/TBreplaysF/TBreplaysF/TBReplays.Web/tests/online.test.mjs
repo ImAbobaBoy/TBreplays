@@ -12,6 +12,13 @@ const { authorizedFetch, resetCsrf, sessionEvents } = await moduleFromSource('..
 const empty = { revision: 0, mapId: 'map', mapRevision: 1, strokes: [] };
 const stroke = { id: 'one', color: '#22c55e', width: 2, style: 'solid', arrowMode: 'none', points: [{ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 1 }] };
 const change = { operationId: 'uuid', revision: 1, mapRevision: 1, kind: 'upsert', stroke, userId: 'editor' };
+test('slide IDs isolate changes even when both maps and revisions match', () => {
+  const board = { ...empty, slideId: 'canal-one', undoCount: 3 };
+  assert.equal(applySketchChange(board, { ...change, slideId: 'canal-two' }), null);
+  const updated = applySketchChange(board, { ...change, slideId: 'canal-one' });
+  assert.equal(updated.slideId, 'canal-one'); assert.equal(updated.undoCount, 3);
+  assert.equal(applySketchChange(board, { ...change, kind: 'undo', slideId: 'canal-one' }), null, 'Undo requires a full snapshot');
+});
 test('same acknowledgement/event applies once; input state stays immutable', () => {
   const first = applySketchChange(empty, change);
   assert.equal(first.strokes.length, 1); assert.equal(empty.strokes.length, 0);

@@ -1,22 +1,26 @@
 import type { ManualTankModel } from '../../domain/TankModels';
 import type { DrawingStrokeModel } from '../../domain/DrawingModels';
-export type OnlineUser = { id: string; login: string; role: 'admin' | 'editor' | 'observer' };
+export type OnlineUser = { id: string; login: string; role: 'admin' | 'editor' | 'observer'; isPresenting?: boolean };
 export type StoredStroke = { stroke: DrawingStrokeModel; revision: number; authorId: string };
 export type StoredTank = { tank: ManualTankModel; revision: number; authorId: string };
-export type SketchState = { revision: number; mapId: string | null; mapRevision: number; strokes: StoredStroke[]; tanks?: StoredTank[] };
-export type SketchCommand = { operationId: string; kind: 'upsert' | 'remove' | 'clear' | 'setMap' | 'upsertTank' | 'removeTank' | 'clearTanks';
-  expectedRevision: number; mapRevision: number; stroke?: DrawingStrokeModel; strokeId?: string; mapId?: string; tank?: ManualTankModel; tankId?: string };
+export type SketchState = { revision: number; mapId: string | null; mapRevision: number; strokes: StoredStroke[]; tanks?: StoredTank[]; slideId?: string | null; undoCount?: number };
+export type SketchCommand = { operationId: string; kind: 'upsert' | 'remove' | 'clear' | 'setMap' | 'upsertTank' | 'removeTank' | 'clearTanks' | 'undo';
+  expectedRevision: number; mapRevision: number; stroke?: DrawingStrokeModel; strokeId?: string; mapId?: string; tank?: ManualTankModel; tankId?: string; slideId?: string | null; connectionId?: string | null };
 export type SketchChange = SketchCommand & { revision: number; userId: string };
 export type SketchResult = { applied: boolean; error: string | null; change: SketchChange | null };
-export type OnlineState = { board: SketchState | null; users: OnlineUser[];
+export type WorkspaceSlide = { id: string; mapId: string; title: string };
+export type WorkspaceState = { revision: number; slides: WorkspaceSlide[]; presenterId: string | null; presenterConnectionId: string | null; presenterSlideId: string | null; activeSlideId: string | null };
+export type WorkspaceCommand = { kind: 'add' | 'replace' | 'delete' | 'rename' | 'present' | 'stopPresentation'; slideId?: string; mapId?: string; title?: string; sourceSlideId?: string };
+export type WorkspaceResult = { applied: boolean; error: string | null; state: WorkspaceState };
+export type OnlineState = { workspace: WorkspaceState | null; board: SketchState | null; users: OnlineUser[];
   status: 'connecting' | 'connected' | 'reconnecting' | 'offline'; pending: boolean; message: string; replay: ReplaySyncState | null; connectionId: string | null;
   clockOffsetMs: number; replayPending: boolean; replayMessage: string };
 export const roleNames = { admin: 'Администратор', editor: 'Редактор', observer: 'Наблюдатель' };
 // Null means there is a gap; fetch a snapshot rather than applying incomplete history.
 export function applySketchChange(state: SketchState | null, change: SketchChange): SketchState | null {
-  if (!state) return null;
+  if (!state || (state.slideId ?? null) !== (change.slideId ?? null)) return null;
   if (change.revision <= state.revision) return state;
-  if (change.revision !== state.revision + 1) return null;
+  if (change.revision !== state.revision + 1 || change.kind === 'undo') return null;
   let strokes = state.strokes;
   if (change.kind === 'clear' || change.kind === 'setMap') strokes = [];
   if (change.kind === 'remove') strokes = strokes.filter(x => x.stroke.id !== change.strokeId);
@@ -33,7 +37,7 @@ export function applySketchChange(state: SketchState | null, change: SketchChang
     tanks = [...tanks.filter(x => x.tank.id !== change.tank!.id),
       { tank: change.tank, revision: change.revision, authorId: previous?.authorId ?? change.userId }];
   }
-  return { revision: change.revision, mapRevision: change.mapRevision,
+  return { ...state, revision: change.revision, mapRevision: change.mapRevision,
     mapId: change.kind === 'setMap' ? change.mapId ?? null : state.mapId, strokes, tanks };
 }
 
@@ -64,7 +68,7 @@ export type ReplaySyncState = {
   serverId: string; sequence: number; revision: number; sessionId: string;
   replayId: string | null; mapId: string | null; leaderId: string | null; leaderConnectionId: string | null;
   time: number; minTime: number; maxTime: number; speed: number; isPlaying: boolean;
-  updatedAtUnixMs: number; serverNowUnixMs: number; reason: string;
+  updatedAtUnixMs: number; serverNowUnixMs: number; reason: string; slideId?: string | null;
 };
 export type ReplayCommand = { kind: 'load' | 'play' | 'pause' | 'seek' | 'speed' | 'unload'; replayId?: string; time?: number; speed?: number };
 export type ReplayTiming = { sessionId: string; revision: number; time: number; isPlaying: boolean; speed: number; sampledAtUnixMs: number };

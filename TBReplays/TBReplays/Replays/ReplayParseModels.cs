@@ -325,6 +325,7 @@ public sealed class ReplayDeathEvent
 
 public sealed class ReplayParseResult
 {
+    public int ShotProtocolVersion { get; init; }
     public uint? RecorderEntityId { get; init; }
     public int? RecorderTeamId { get; init; }
     public int SchemaVersion { get; init; } = 1;

@@ -49,6 +49,22 @@ export class TerrainLayer {
     this.clear();
 
     const generation = this.generation;
+    const packed = await this.api.getTerrainChunks(manifest.mapId);
+    if (generation !== this.generation) return;
+    if (packed) {
+      const view = new DataView(packed);
+      if (packed.byteLength < 4 || view.getInt32(0, true) !== manifest.chunks.length) throw new Error('Некорректный пакет terrain.');
+      let offset = 4;
+      for (const _chunk of manifest.chunks) {
+        if (offset + 4 > packed.byteLength) throw new Error('Обрезанный пакет terrain.');
+        const length = view.getInt32(offset, true); offset += 4;
+        if (length < 24 || offset + length > packed.byteLength) throw new Error('Некорректный размер terrain chunk.');
+        const chunk = this.parseTerrainChunk(packed.slice(offset, offset + length)); offset += length;
+        this.root.add(this.createTerrainChunkMesh(manifest, chunk, calibration));
+      }
+      if (offset !== packed.byteLength) throw new Error('Лишние данные в пакете terrain.');
+      return;
+    }
     const concurrency = 8;
     let currentIndex = 0;
 

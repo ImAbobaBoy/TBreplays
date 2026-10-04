@@ -8,7 +8,7 @@ export function useOnlineTanks(engine: ViewerEngine | null, setTanks: (tanks: Ma
   const online = useOnline();
   const latest = useRef({ online, setTanks });
   latest.current = { online, setTanks };
-  const edit = useRef<{ id: string; revision: number; mapRevision: number } | null>(null);
+  const edit = useRef<{ id: string; revision: number; mapRevision: number; slideId?: string | null } | null>(null);
   const restore = () => {
     const tanks = latest.current.online.client.getSnapshot().board?.tanks ?? [];
     latest.current.setTanks(tanks.map(x => x.tank));
@@ -18,7 +18,7 @@ export function useOnlineTanks(engine: ViewerEngine | null, setTanks: (tanks: Ma
     const board = current.client.getSnapshot().board;
     const started = drag && edit.current?.id === tank.id ? edit.current : null;
     edit.current = null;
-    if (!current.canEdit || !board) { restore(); return; }
+    if (!current.canEdit || !board || started && started.slideId !== board.slideId) { restore(); return; }
     const stored = board.tanks?.find(x => x.tank.id === tank.id);
     void current.client.apply({ kind: 'upsertTank', tank,
       expectedRevision: started?.revision ?? stored?.revision ?? 0,
@@ -44,7 +44,7 @@ export function useOnlineTanks(engine: ViewerEngine | null, setTanks: (tanks: Ma
       begin: id => {
         const board = latest.current.online.client.getSnapshot().board;
         const stored = board?.tanks?.find(x => x.tank.id === id);
-        edit.current = board && stored ? { id, revision: stored.revision, mapRevision: board.mapRevision } : null;
+        edit.current = board && stored ? { id, revision: stored.revision, mapRevision: board.mapRevision, slideId: board.slideId } : null;
       },
       commit: tank => actions.current.commit(tank, true),
       remove: id => actions.current.remove(id),

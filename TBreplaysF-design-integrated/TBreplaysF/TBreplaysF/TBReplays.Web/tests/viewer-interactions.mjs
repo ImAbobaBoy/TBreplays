@@ -1,0 +1,62 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import ts from 'typescript';
+import * as THREE from 'three';
+const three = pathToFileURL(path.resolve('node_modules/three/build/three.module.js')).href;
+function compile(file, imports = {}) {
+  let code = ts.transpileModule(fs.readFileSync(file,'utf8'), {compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
+  for(const [from,to] of Object.entries(imports)) code=code.replaceAll(`from '${from}'`,`from '${to}'`);
+  return 'data:text/javascript;base64,'+Buffer.from(code).toString('base64');
+}
+globalThis.window = new EventTarget();
+globalThis.document = {createElement:()=>({width:0,height:0,getContext:()=>new Proxy(
+  {measureText:text=>({width:text.length*18})}, {get:(context,key)=>context[key]??(()=>{})}
+)})};
+const text = compile('src/engine/TextSign.ts',{three});
+const id = compile('src/utils/createId.ts');
+const {DrawingLayer}=await import(compile('src/engine/layers/DrawingLayer.ts',{three,'../../utils/createId':id,'../TextSign':text}));
+const {TerrainLayer}=await import(compile('src/engine/layers/TerrainLayer.ts',{three,'../MapCalibrationTransforms':compile('src/engine/MapCalibrationTransforms.ts',{three})}));
+const {TankLayer}=await import(compile('src/engine/layers/TankLayer.ts',{three,'../../utils/createId':id,'../tanks/TankMeshFactory':compile('src/engine/tanks/TankMeshFactory.ts',{three})}));
+const canvas=Object.assign(new EventTarget(),{getBoundingClientRect:()=>({left:0,top:0,right:400,bottom:400,width:400,height:400})});
+const emit=(target,type,values)=>{const event=Object.assign(new Event(type,{cancelable:true}),values);target.dispatchEvent(event);return event;};
+const root=new THREE.Group(),terrain=new THREE.Group(),camera=new THREE.OrthographicCamera(-100,100,100,-100,.1,1000);
+camera.position.set(0,100,0);camera.up.set(0,0,-1);camera.lookAt(0,0,0);camera.updateMatrixWorld(true);
+const plane=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshBasicMaterial({side:THREE.DoubleSide}));plane.rotation.x=-Math.PI/2;terrain.add(plane);terrain.updateMatrixWorld(true);
+const controls={enabled:true},layer=new DrawingLayer(root,terrain,camera,{domElement:canvas},controls);
+const stroke={id:'line',color:'#ff0000',width:8,style:'solid',arrowMode:'none',points:[{x:-40,y:1,z:0},{x:40,y:1,z:0}]};
+layer.setStrokes([stroke]);root.updateMatrixWorld(true);layer.setTool('erase');
+const removed=[];layer.setOnlineHandlers({upsert(){},remove:id=>removed.push(id)});
+emit(canvas,'pointerdown',{button:2,buttons:2,pointerId:1,clientX:20,clientY:20});assert.equal(controls.enabled,false);assert.deepEqual(removed,[]);
+emit(window,'pointermove',{buttons:2,pointerId:1,clientX:200,clientY:200});assert.deepEqual(removed,['line'],'RMB beginning off the line erases when moving onto it');
+emit(window,'pointermove',{buttons:2,pointerId:1,clientX:200,clientY:200});assert.equal(removed.length,1,'No repeated network delete while waiting for sync');
+assert.equal(emit(canvas,'contextmenu',{}).defaultPrevented,true);
+emit(window,'pointerup',{button:2,buttons:0,pointerId:1});assert.equal(controls.enabled,true);
+let other=0;layer.eraseOther=()=>other++;
+emit(window,'pointermove',{buttons:2,pointerId:2,clientX:20,clientY:20});assert.equal(other,1,'Held RMB entering the viewport also erases other entities');
+emit(window,'blur',{});assert.equal(controls.enabled,true);
+layer.setEnabled(false);emit(window,'pointermove',{buttons:2,pointerId:2,clientX:200,clientY:200});assert.equal(removed.length,1,'Observer cannot erase');
+layer.setEnabled(true);layer.setTool('text');layer.setText('Вперёд\nДержать позицию',10);
+const placed=[];layer.setOnlineHandlers({upsert:sign=>placed.push(sign),remove(){}});
+emit(canvas,'pointerdown',{button:0,buttons:1,pointerId:3,clientX:200,clientY:200});
+assert.equal(placed[0].style,'text');assert.equal(layer.getStrokes().find(s=>s.style==='text').text,'Вперёд\nДержать позицию');
+root.updateMatrixWorld(true);const sign=root.children.find(o=>o.userData.lineStyle==='text');assert.ok(sign.children[0] instanceof THREE.Sprite);
+layer.setTool('erase');layer.setOnlineHandlers({upsert(){},remove:id=>removed.push(id)});
+emit(canvas,'pointerdown',{button:2,buttons:2,pointerId:4,clientX:200,clientY:165});assert.ok(removed.includes(placed[0].id),'Billboard is erasable');
+layer.dispose();assert.equal(controls.enabled,true);
+const tanksRoot=new THREE.Group(),tankLayer=new TankLayer(tanksRoot,terrain,camera,{domElement:canvas},controls);
+tankLayer.setManualTanks([{id:'tank',label:'',visualKey:'heavy',team:'neutral',color:'#facc15',coordinateSpace:'viewer-world-v1',pose:{x:0,y:1,z:0,bodyYawDegrees:0,turretYawDegrees:0}}]);
+tanksRoot.updateMatrixWorld(true);const raycaster=new THREE.Raycaster();raycaster.setFromCamera(new THREE.Vector2(0,0),camera);
+const tankDeletes=[];tankLayer.setOnlineHandlers({begin(){},commit(){},remove:id=>tankDeletes.push(id)});
+const erased=new Set();tankLayer.eraseAt(raycaster,erased);tankLayer.eraseAt(raycaster,erased);assert.deepEqual(tankDeletes,['tank']);
+tankLayer.setEditable(false);tankLayer.eraseAt(raycaster,new Set());assert.equal(tankDeletes.length,1);tankLayer.dispose();
+
+const chunk=new ArrayBuffer(32),view=new DataView(chunk);[2,2,0,0,1,1].forEach((n,i)=>view.setInt32(i*4,n,true));
+const pack=new ArrayBuffer(40);new DataView(pack).setInt32(0,1,true);new DataView(pack).setInt32(4,32,true);new Uint8Array(pack,8).set(new Uint8Array(chunk));
+let requests=0;const terrainRoot=new THREE.Group();const terrainLayer=new TerrainLayer(terrainRoot,{getTerrainChunks:async()=>{requests++;return pack;},getTerrainChunk:async()=>{throw Error('Individual request');}});
+const manifest={schemaVersion:2,mapId:'map',heightmapSize:2,bounds:{minX:-1,maxX:1,minY:-1,maxY:1,minZ:0,maxZ:1,width:2,depth:2,height:1},chunks:[{url:'chunk'}]};
+await terrainLayer.load(manifest,null);assert.equal(requests,1);assert.equal(terrainRoot.children.length,1);
+assert.ok([...terrainRoot.children[0].geometry.attributes.position.array].every(Number.isFinite));
+new DataView(pack).setInt32(4,9999,true);await assert.rejects(terrainLayer.load(manifest,null),/размер/);terrainLayer.dispose();
+console.log('PASS: held RMB eraser, deduplication, permissions, text placement/billboard/delete, one-request terrain and corrupt-pack rejection');

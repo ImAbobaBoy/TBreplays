@@ -286,10 +286,11 @@ export class ObjectMeshLayer {
         materials[materialInfo.index].clippingPlanes = this.clippingPlanes;
       }
     };
-    for (let i = 0; i < manifest.materials.length; i += 8) {
-      if (generation !== this.generation) break;
-      await Promise.all(manifest.materials.slice(i, i + 8).map(create));
-    }
+    const infos = manifest.materials;
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(8, infos.length) }, async () => {
+      while (next < infos.length && generation === this.generation) await create(infos[next++]);
+    }));
 
     if (generation !== this.generation) return materials.filter(Boolean);
     return materials;

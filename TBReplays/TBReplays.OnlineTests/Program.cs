@@ -8,6 +8,7 @@ using TBReplays.Online;
 
 var directory = Path.Combine(Path.GetTempPath(), "tbreplays-online-tests-" + Guid.NewGuid().ToString("N"));
 var checks = 0;
+var observed = new List<JsonNode>();
 var app = await Start();
 try
 {
@@ -198,7 +199,8 @@ try
     await app.StopAsync();
     await app.DisposeAsync();
     app = await Start();
-    using var restarted = Client(new CookieContainer(), app.Urls.Single());
+    var restartedCookies = new CookieContainer();
+    using var restarted = Client(restartedCookies, app.Urls.Single());
     await Csrf(restarted);
     await Expect(restarted.PostAsJsonAsync("/api/auth/login", new { login = "admin", password = "admin" }), 401);
     await Expect(restarted.PostAsJsonAsync("/api/auth/login", new { login = "admin", password = "admin-new-password" }), 200);
@@ -209,6 +211,128 @@ try
     await Expect(restarted.PostAsJsonAsync("/api/sketch/commands", Command("setMap", 15, 4, mapId: "next-map")), 200);
     var newMap = await Json(restarted.GetAsync("/api/sketch"));
     Check(newMap["tanks"]!.AsArray().Count == 0, "map switch clears tanks");
+    var editorCookies = new CookieContainer();
+    using var editor = Client(editorCookies, app.Urls.Single());
+    await Csrf(editor);
+    var editorUser = await Json(editor.PostAsJsonAsync("/api/auth/register", new { login = "slide-editor", password = "password123" }));
+    await Expect(editor.PostAsJsonAsync("/api/auth/login", new { login = "slide-editor", password = "password123" }), 200);
+    var editorId = editorUser["id"]!.GetValue<string>();
+    await Expect(restarted.PutAsJsonAsync($"/api/users/{editorId}/role", new { role = "editor" }), 200);
+    using var slideA = await Socket(restartedCookies, app.Urls.Single());
+    using var slideB = await Socket(editorCookies, app.Urls.Single());
+    async Task<JsonNode> Workspace(string kind, string? id = null, string? sourceId = null) {
+        var current = await ReplayCall(slideA, "GetWorkspace");
+        var result = await ReplayCall(slideA, "WorkspaceApply", new WorkspaceCommand(Guid.NewGuid().ToString(), kind,
+            current["revision"]!.GetValue<long>(), id, "test-map", "Canal tactic", sourceId));
+        Check(result["applied"]!.GetValue<bool>(), "workspace " + kind); return result;
+    }
+    await Workspace("add", "slide-a"); await Workspace("add", "slide-b");
+    await ReplayCall(slideA, "SelectSlide", "slide-a"); await ReplayCall(slideB, "SelectSlide", "slide-b");
+    async Task<JsonNode> Edit(ClientWebSocket socket, string kind, SketchStroke? drawing = null, long entityRevision = 0, SketchTank? vehicle = null, string? strokeId = null) {
+        var board = await ReplayCall(socket, "GetState");
+        return await ReplayCall(socket, "Apply", new SketchCommand(Guid.NewGuid().ToString(), kind,
+            kind is "undo" or "clear" or "clearTanks" ? board["revision"]!.GetValue<long>() : entityRevision,
+            board["mapRevision"]!.GetValue<long>(), drawing, StrokeId: strokeId, Tank: vehicle, SlideId: board["slideId"]!.GetValue<string>()));
+    }
+    var isolated = stroke with { Id = "isolated-line" };
+    observed.Clear();
+    var created = await Edit(slideA, "upsert", isolated);
+    Check(created["applied"]!.GetValue<bool>(), "slide drawing saved");
+    observed.Clear();
+    var independent = await ReplayCall(slideB, "GetState");
+    Check(independent["strokes"]!.AsArray().Count == 0, "same map on two slides has independent drawings");
+    Check(!observed.Any(node => node["target"]?.GetValue<string>() == "SketchChanged" && node["arguments"]?[0]?["stroke"]?["id"]?.GetValue<string>() == "isolated-line"), "other slide receives no drawing event");
+    var point = isolated with { Id = "point-marker", Style = "marker", Points = [new(15, 2, 20)] };
+    Check((await Edit(slideB, "upsert", point))["applied"]!.GetValue<bool>(), "single-point marker accepted");
+    var session = await ReplaySnapshot(slideA);
+    Check((await ReplayCommand(slideA, session, "load", "fixture"))["applied"]!.GetValue<bool>(), "replay loaded on first slide");
+    Check((await ReplaySnapshot(slideB))["replayId"] is null, "second slide has independent replay clock");
+    Check((await ReplayCommand(slideA, await ReplaySnapshot(slideA), "seek", time: 37))["applied"]!.GetValue<bool>(), "seek first slide to 37");
+    Check((await ReplayCommand(slideB, await ReplaySnapshot(slideB), "load", "fixture"))["applied"]!.GetValue<bool>(), "load separate replay on second slide");
+    Check((await ReplayCommand(slideB, await ReplaySnapshot(slideB), "seek", time: 73))["applied"]!.GetValue<bool>(), "seek second slide to 73");
+    await ReplayCall(slideA, "SelectSlide", "slide-b");
+    Check((await ReplaySnapshot(slideA))["time"]!.GetValue<double>() == 73, "switch restores second slide clock");
+    Check((await Edit(slideA, "undo"))["error"]!.GetValue<string>() == "nothingToUndo", "undo never affects another slide or user");
+    await ReplayCall(slideA, "SelectSlide", "slide-a");
+    Check((await ReplaySnapshot(slideA))["time"]!.GetValue<double>() == 37, "return restores first slide clock");
+    var modified = isolated with { Color = "#123456" };
+    Check((await Edit(slideA, "upsert", modified, 1))["applied"]!.GetValue<bool>(), "stroke can be changed");
+    Check((await Edit(slideA, "undo"))["applied"]!.GetValue<bool>(), "undo stroke change");
+    var afterUndo = await ReplayCall(slideA, "GetState");
+    Check(afterUndo["strokes"]![0]!["stroke"]!["color"]!.GetValue<string>() == isolated.Color, "undo restores previous style");
+    Check((await Edit(slideA, "undo"))["applied"]!.GetValue<bool>(), "second undo removes creation after revision rebasing");
+    Check((await ReplayCall(slideA, "GetState"))["strokes"]!.AsArray().Count == 0, "multi-step undo ends at empty slide");
+    Check((await Edit(slideA, "upsertTank", vehicle: tank with { Id = "undo-tank" }))["applied"]!.GetValue<bool>(), "tank placement on slide");
+    Check((await Edit(slideA, "undo"))["applied"]!.GetValue<bool>(), "tank placement undo");
+    Check((await ReplayCall(slideA, "GetState"))["tanks"]!.AsArray().Count == 0, "undo removes tank");
+    var shared = isolated with { Id = "shared-conflict" };
+    var sharedCreated = await Edit(slideA, "upsert", shared);
+    await ReplayCall(slideB, "SelectSlide", "slide-a");
+    Check((await Edit(slideB, "upsert", shared with { Color = "#654321" }, sharedCreated["change"]!["revision"]!.GetValue<long>()))["applied"]!.GetValue<bool>(), "peer changes same object");
+    Check((await Edit(slideA, "undo"))["error"]!.GetValue<string>() == "undoConflict", "undo protects peer edit");
+    await ReplayCall(slideB, "SelectSlide", "slide-b");
+    await Workspace("present");
+    var beforeRepeat = await ReplayCall(slideA, "GetWorkspace");
+    await ReplayCall(slideA, "SelectSlide", "slide-a");
+    Check((await ReplayCall(slideA, "GetWorkspace"))["revision"]!.GetValue<long>() == beforeRepeat["revision"]!.GetValue<long>(), "presenter selecting current slide creates no broadcast loop");
+    var forced = await ReplayCall(slideB, "GetWorkspace");
+    Check(forced["activeSlideId"]!.GetValue<string>() == "slide-a", "presentation forces same slide");
+    Check(!(await ReplayCall(slideB, "SelectSlide", "slide-b"))["applied"]!.GetValue<bool>(), "participant cannot escape presentation");
+    await ReplayCall(slideA, "SelectSlide", "slide-b");
+    Check((await ReplayCall(slideB, "GetState"))["slideId"]!.GetValue<string>() == "slide-b", "presenter navigation follows for everyone");
+    await Workspace("stopPresentation");
+    Check((await ReplayCall(slideA, "GetWorkspace"))["activeSlideId"]!.GetValue<string>() == "slide-b", "presenter remains on current slide");
+    Check((await ReplayCall(slideB, "GetWorkspace"))["activeSlideId"]!.GetValue<string>() == "slide-b", "participant remains on last presented slide");
+    await Workspace("add", "slide-copy", "slide-b");
+    await ReplayCall(slideA, "SelectSlide", "slide-copy");
+    Check((await ReplayCall(slideA, "GetState"))["strokes"]![0]!["stroke"]!["id"]!.GetValue<string>() == "point-marker", "duplicate copies tactics into separate state");
+    var invalidConnection = Command("clear", 1, 0) with { SlideId = "slide-b", ConnectionId = "forged" };
+    await Expect(restarted.PostAsJsonAsync("/api/sketch/commands", invalidConnection), 409);
+    var savedSlides = System.Text.Json.JsonSerializer.Deserialize<WorkspaceDocument>(await File.ReadAllTextAsync(Path.Combine(directory, "workspace.json")), OnlineFiles.Json)!;
+    Check(savedSlides.Slides.Count == 4, "slide metadata persisted");
+    await Workspace("present");
+    Check((await ReplayCall(slideB, "GetWorkspace"))["activeSlideId"]!.GetValue<string>() == "slide-copy", "participant follows another map state");
+    await Workspace("stopPresentation");
+    Check((await ReplayCall(slideB, "GetWorkspace"))["activeSlideId"]!.GetValue<string>() == "slide-copy", "presentation exit retains presented slide instead of old personal choice");
+    var editorWorkspace = await ReplayCall(slideB, "GetWorkspace");
+    Check((await ReplayCall(slideB, "WorkspaceApply", new WorkspaceCommand(Guid.NewGuid().ToString(), "present", editorWorkspace["revision"]!.GetValue<long>())))["applied"]!.GetValue<bool>(), "editor may present");
+    await Expect(restarted.PutAsJsonAsync($"/api/users/{editorId}/role", new { role = "observer" }), 200);
+    Check((await ReplayCall(slideA, "GetWorkspace"))["presenterId"] is null, "role revocation ends presentation");
+    Check((await ReplayCall(slideB, "SelectSlide", "slide-a"))["applied"]!.GetValue<bool>(), "observer independently switches slides");
+    Check((await ReplayCall(slideB, "SelectSlide", "slide-b"))["applied"]!.GetValue<bool>(), "observer can return to another slide");
+    Check((await Edit(slideB, "upsert", point))["error"]!.GetValue<string>() == "forbidden", "observer cannot draw");
+    Check((await ReplayCommand(slideB, await ReplaySnapshot(slideB), "seek", time: 5))["error"]!.GetValue<string>() == "forbidden", "observer cannot change replay");
+    var observerWorkspace = await ReplayCall(slideB, "GetWorkspace");
+    Check((await ReplayCall(slideB, "WorkspaceApply", new WorkspaceCommand(Guid.NewGuid().ToString(), "present", observerWorkspace["revision"]!.GetValue<long>())))["error"]!.GetValue<string>() == "forbidden", "observer cannot start presentation");
+    var textSign = new SketchStroke("text-sign", "#ffff00", 10, "text", "none", [new(10, 20, 30)], "Вперёд\nДержать позицию");
+    var textCreated = await Edit(slideA, "upsert", textSign);
+    Check(textCreated["applied"]!.GetValue<bool>(), "text sign can be placed");
+    Check((await Edit(slideB, "upsert", textSign))["error"]!.GetValue<string>() == "forbidden", "observer cannot place text sign");
+    Check((await Edit(slideA, "upsert", textSign with { Id = "empty-sign", Text = " " }))["error"]!.GetValue<string>() == "invalidText", "empty sign rejected");
+    Check((await Edit(slideA, "upsert", textSign with { Id = "large-sign", Text = new string('a', 501) }))["error"]!.GetValue<string>() == "invalidText", "large sign rejected");
+    Check((await Edit(slideA, "upsert", textSign with { Id = "bad-sign", Text = "abc\u0000def" }))["error"]!.GetValue<string>() == "invalidText", "control characters rejected");
+    Check((await Edit(slideA, "remove", strokeId: textSign.Id, entityRevision: textCreated["change"]!["revision"]!.GetValue<long>()))["applied"]!.GetValue<bool>(), "eraser removes text sign");
+    Check((await Edit(slideA, "undo"))["applied"]!.GetValue<bool>(), "undo restores text sign");
+    Check((await ReplayCall(slideA, "GetState"))["strokes"]!.AsArray().Any(value => value!["stroke"]!["text"]?.GetValue<string>() == textSign.Text), "text and newline survive undo");
+    slideA.Abort(); slideB.Abort();
+    await app.StopAsync(); await app.DisposeAsync(); app = await Start();
+    var finalCookies = new CookieContainer();
+    using var finalClient = Client(finalCookies, app.Urls.Single());
+    await Csrf(finalClient);
+    await Expect(finalClient.PostAsJsonAsync("/api/auth/login", new { login = "admin", password = "admin-new-password" }), 200);
+    using var finalSocket = await Socket(finalCookies, app.Urls.Single());
+    Check((await ReplayCall(finalSocket, "GetWorkspace"))["slides"]!.AsArray().Count == 4, "slides survive server restart");
+    await ReplayCall(finalSocket, "SelectSlide", "slide-copy");
+    Check((await ReplayCall(finalSocket, "GetState"))["strokes"]![0]!["stroke"]!["style"]!.GetValue<string>() == "marker", "slide drawings survive server restart");
+    Check((await ReplayCall(finalSocket, "GetState"))["strokes"]!.AsArray().Any(value => value!["stroke"]!["text"]?.GetValue<string>() == textSign.Text), "text signs survive server restart");
+    var finalWorkspace = await ReplayCall(finalSocket, "GetWorkspace");
+    foreach (var slide in finalWorkspace["slides"]!.AsArray()) {
+        var deletionWorkspace = await ReplayCall(finalSocket, "GetWorkspace");
+        Check((await ReplayCall(finalSocket, "WorkspaceApply", new WorkspaceCommand(Guid.NewGuid().ToString(), "delete", deletionWorkspace["revision"]!.GetValue<long>(), slide!["id"]!.GetValue<string>())))["applied"]!.GetValue<bool>(), "delete slide");
+    }
+    Check((await ReplayCall(finalSocket, "GetState"))["mapId"] is null, "deleting last slide never resurrects legacy map");
+    var emptyWorkspace = await ReplayCall(finalSocket, "GetWorkspace");
+    Check(!(await ReplayCall(finalSocket, "WorkspaceApply", new WorkspaceCommand(Guid.NewGuid().ToString(), "add", emptyWorkspace["revision"]!.GetValue<long>(), "slide-copy", "another-map", "Reused")))["applied"]!.GetValue<bool>(), "deleted slide ID cannot resurrect data on another map");
     Console.WriteLine($"PASS: {checks} online integration checks (HTTP, two WebSockets, roles, reset, concurrency, persistence).");
 }
 finally
@@ -286,6 +410,7 @@ async Task<JsonNode> Until(ClientWebSocket socket, Func<JsonNode, bool> predicat
         foreach (var part in parts[..^1])
         {
             var node = JsonNode.Parse(part)!;
+            observed.Add(node.DeepClone());
             if (predicate(node)) { checks++; return node; }
         }
     }

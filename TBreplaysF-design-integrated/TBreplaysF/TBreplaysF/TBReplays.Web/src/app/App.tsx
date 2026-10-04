@@ -175,7 +175,7 @@ export function App() {
   };
   const clearManualTanks = () => onlineTanks.clear();
 
-  const exportStrategyPng = async () => {
+  const exportStrategyPng = async (includeReplay = true) => {
     if (!viewerEngineRef.current) {
       setStatus('ViewerEngine ещё не готов.');
       return;
@@ -184,7 +184,7 @@ export function App() {
     try {
       setStatus('Готовлю PNG-экспорт тактики...');
 
-      const fileName = await viewerEngineRef.current.exportStrategyPng();
+      const fileName = await viewerEngineRef.current.exportStrategyPng(includeReplay);
 
       setStatus(`PNG-экспорт готов: ${fileName}`);
     } catch (error) {

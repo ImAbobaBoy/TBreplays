@@ -1,0 +1,28 @@
+{
+    auto_https disable_redirects
+}
+
+http://{$TBREPLAYS_IP} {
+    handle /.well-known/acme-challenge/* {
+        root * /var/lib/tbreplays/acme
+        file_server
+    }
+    handle {
+        redir https://{$TBREPLAYS_IP}{uri} permanent
+    }
+}
+
+https://{$TBREPLAYS_IP} {
+    tls /etc/caddy/tbreplays/fullchain.pem /etc/caddy/tbreplays/privkey.pem
+    encode gzip
+    @backend path /api /api/* /hubs /hubs/*
+    handle @backend {
+        reverse_proxy 127.0.0.1:5000
+    }
+    handle {
+        root * /srv/tbreplays/web
+        try_files {path} /index.html
+        header Cache-Control "no-cache"
+        file_server
+    }
+}

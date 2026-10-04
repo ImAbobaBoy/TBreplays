@@ -71,9 +71,10 @@ public static class EntityMethodPacketDecoder
             methodPayload);
     }
 
-    public static ShotFiredEvent? TryDecodeShotFired(EntityMethodFrame method)
+    public static ShotFiredEvent? TryDecodeShotFired(EntityMethodFrame method, int payloadLength = 37)
     {
-        if (method.MethodId != 35 || method.MethodPayload.Length != 37)
+        // 26.10 appends two 32-bit fields; the shooter, projectile and vectors retain their offsets.
+        if (payloadLength is not (37 or 45) || method.MethodId != 35 || method.MethodPayload.Length != payloadLength)
         {
             return null;
         }
@@ -89,6 +90,8 @@ public static class EntityMethodPacketDecoder
         var directionOrVelocityY = ReadSingle(payload, 25);
         var directionOrVelocityZ = ReadSingle(payload, 29);
         var extraFloat = ReadSingle(payload, 33);
+        if (!new[] { originX, originY, originZ, directionOrVelocityX, directionOrVelocityY, directionOrVelocityZ, extraFloat }.All(float.IsFinite)
+            || (directionOrVelocityX == 0 && directionOrVelocityY == 0 && directionOrVelocityZ == 0)) return null;
 
         return new ShotFiredEvent(
             method.PacketIndex,

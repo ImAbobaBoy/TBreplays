@@ -6,23 +6,32 @@ namespace TBReplays.Online;
 
 // Only commands and clock anchors live here; no per-frame tank state and no periodic disk writes.
 public sealed class ReplaySyncService(OnlineFiles files, OnlineSecurity security, SketchService sketches,
-    IReplaySyncCatalog catalog, IHubContext<SketchHub> hub, ILogger<ReplaySyncService> logger) : BackgroundService
+    IReplaySyncCatalog catalog, IHubContext<SketchHub> hub, ILogger<ReplaySyncService> logger, WorkspaceService workspace) : BackgroundService
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private ReplaySyncState _state = new(Guid.NewGuid().ToString("N"), 0, 0, Guid.NewGuid().ToString("N"),
-        null, null, null, null, 0, 0, 0, 1, false, Now(), Now(), "empty");
+    private readonly Dictionary<string, ReplaySyncState> _states = [];
+    private readonly Dictionary<string, long> _timings = [];
+    private readonly string _serverId = Guid.NewGuid().ToString("N");
+    private string _scope = "";
+    private ReplaySyncState _state { get => _states[_scope]; set => _states[_scope] = value; }
+    private long _lastTimingAt { get => _timings.GetValueOrDefault(_scope); set => _timings[_scope] = value; }
     private readonly Dictionary<string, (string User, ReplaySyncCommand Command)> _operations = [];
-    private long _lastTimingAt;
+    private void SelectScope(string? slideId) {
+        _scope = slideId ?? "";
+        if (!_states.ContainsKey(_scope)) _states[_scope] = new(_serverId, 0, 0, Guid.NewGuid().ToString("N"),
+            null, null, null, null, 0, 0, 0, 1, false, Now(), Now(), "empty", slideId);
+    }
     private static long Now() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     private ReplaySyncState Snapshot() => _state with { ServerNowUnixMs = Now() };
     private double CurrentTime(long now) => Math.Clamp(_state.Time + (_state.IsPlaying
         ? Math.Max(0, now - _state.UpdatedAtUnixMs) / 1000d * _state.Speed : 0), _state.MinTime, _state.MaxTime);
 
-    public async Task<ReplaySyncState> GetAsync(string userId, string connectionId, bool canLead)
+    public async Task<ReplaySyncState> GetAsync(string userId, string connectionId, bool canLead, string? slideId = null)
     {
         await _gate.WaitAsync();
         try
         {
+            SelectScope(slideId);
             if (canLead && _state.ReplayId is not null && _state.LeaderId == userId && _state.LeaderConnectionId is null)
             {
                 _state = _state with { LeaderConnectionId = connectionId, Sequence = _state.Sequence + 1, Reason = "leaderReturned" };
@@ -42,15 +51,17 @@ public sealed class ReplaySyncService(OnlineFiles files, OnlineSecurity security
             await _gate.WaitAsync();
             try
             {
+                SelectScope(command?.SlideId is { } slide && workspace.Find(slide) is not null ? slide : null);
                 ReplaySyncResult Fail(string error) => new(false, error, Snapshot());
                 if (user is null) return Fail("unauthorized");
                 if (user.Role is not (OnlineRoles.Admin or OnlineRoles.Editor)) return Fail("forbidden");
                 if (command is null || !Guid.TryParse(command.OperationId, out _) || command.ExpectedRevision < 0
                     || command.Kind is not ("load" or "play" or "pause" or "seek" or "speed" or "unload")) return Fail("invalidCommand");
+                if (command.SlideId is not null && !workspace.CanAccess(user.Id, connectionId, command.SlideId)) return Fail("slideConflict");
                 if (_operations.TryGetValue(command.OperationId, out var previous))
                     return previous.User == user.Id && previous.Command == command ? new(true, null, Snapshot()) : Fail("operationIdConflict");
                 if (command.SessionId != _state.SessionId || command.ExpectedRevision != _state.Revision) return Fail("replayConflict");
-                var board = await sketches.GetAsync();
+                var board = _scope == "" ? await sketches.GetAsync() : await sketches.GetSlideAsync(_scope);
                 var now = Now();
                 var time = CurrentTime(now);
                 var next = _state;
@@ -106,11 +117,13 @@ public sealed class ReplaySyncService(OnlineFiles files, OnlineSecurity security
             await _gate.WaitAsync();
             try
             {
+                SelectScope(timing?.SlideId is { } slide && workspace.Find(slide) is not null ? slide : null);
                 ReplaySyncResult Fail(string error) => new(false, error, Snapshot());
                 if (user is null) return Fail("unauthorized");
                 if (user.Role is not (OnlineRoles.Admin or OnlineRoles.Editor) || user.Id != _state.LeaderId
                     || connectionId != _state.LeaderConnectionId) return Fail("notLeader");
                 if (timing is null || timing.SessionId != _state.SessionId || timing.Revision != _state.Revision) return Fail("replayConflict");
+                if (timing.SlideId is not null && !workspace.CanAccess(user.Id, connectionId, timing.SlideId)) return Fail("slideConflict");
                 var now = Now();
                 if (!double.IsFinite(timing.Time) || timing.Time < _state.MinTime || timing.Time > _state.MaxTime
                     || timing.Speed != _state.Speed || Math.Abs((double)now - timing.SampledAtUnixMs) > 10000
@@ -134,15 +147,14 @@ public sealed class ReplaySyncService(OnlineFiles files, OnlineSecurity security
         await _gate.WaitAsync();
         try
         {
-            if (_state.LeaderId == userId && _state.LeaderConnectionId is not null)
-                await PauseLeader("leaderRoleChanged");
+            foreach (var scope in _states.Keys.ToArray()) { SelectScope(scope == "" ? null : scope); if (_state.LeaderId == userId && _state.LeaderConnectionId is not null) await PauseLeader("leaderRoleChanged"); }
         }
         finally { _gate.Release(); }
     }
     public async Task DisconnectedAsync(string connectionId)
     {
         await _gate.WaitAsync();
-        try { if (_state.LeaderConnectionId == connectionId) await PauseLeader("leaderOffline"); }
+        try { foreach (var scope in _states.Keys.ToArray()) { SelectScope(scope == "" ? null : scope); if (_state.LeaderConnectionId == connectionId) await PauseLeader("leaderOffline"); } }
         finally { _gate.Release(); }
     }
     public async Task MapChangedAsync()
@@ -150,8 +162,9 @@ public sealed class ReplaySyncService(OnlineFiles files, OnlineSecurity security
         await _gate.WaitAsync();
         try
         {
+            SelectScope(null);
             // Read the current board: delayed or duplicate setMap acknowledgements may refer to an older map.
-            var board = await sketches.GetAsync();
+            var board = _scope == "" ? await sketches.GetAsync() : await sketches.GetSlideAsync(_scope);
             if (_state.ReplayId is null || _state.MapId == board.MapId) return;
             _state = Empty(_state) with { Revision = _state.Revision + 1, Sequence = _state.Sequence + 1, UpdatedAtUnixMs = Now(), Reason = "mapChanged" };
             await Broadcast();
@@ -170,7 +183,7 @@ public sealed class ReplaySyncService(OnlineFiles files, OnlineSecurity security
     private async Task Broadcast()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        try { await hub.Clients.All.SendAsync("ReplayChanged", Snapshot(), timeout.Token); }
+        try { await (_scope == "" ? hub.Clients.All : hub.Clients.Group(WorkspaceService.Group(_scope))).SendAsync("ReplayChanged", Snapshot(), timeout.Token); }
         catch (Exception error) { logger.LogWarning(error, "Replay broadcast failed at {Sequence}", _state.Sequence); }
     }
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -181,7 +194,7 @@ public sealed class ReplaySyncService(OnlineFiles files, OnlineSecurity security
             while (await timer.WaitForNextTickAsync(stoppingToken))
             {
                 await _gate.WaitAsync(stoppingToken);
-                try { if (_state.LeaderConnectionId is not null && Now() - _lastTimingAt > 15000) await PauseLeader("leaderTimeout"); }
+                try { foreach (var scope in _states.Keys.ToArray()) { SelectScope(scope == "" ? null : scope); if (_state.LeaderConnectionId is not null && Now() - _lastTimingAt > 15000) await PauseLeader("leaderTimeout"); } }
                 finally { _gate.Release(); }
             }
         }

@@ -16,7 +16,7 @@ export async function authorizedFetch(url: string, init: RequestInit = {}, retry
   const unsafe = !['GET', 'HEAD', 'OPTIONS'].includes((init.method ?? 'GET').toUpperCase());
   const headers = new Headers(init.headers);
   if (unsafe) headers.set('X-CSRF-TOKEN', await token());
-  const response = await fetch(url, { ...init, headers, credentials: 'include', cache: 'no-store' });
+  const response = await fetch(url, { ...init, headers, credentials: 'include', cache: init.cache ?? 'no-store' });
   if (response.status === 401 && !url.endsWith('/api/auth/login') && !url.endsWith('/api/auth/register')) {
     resetCsrf(); sessionEvents.dispatchEvent(new Event('expired'));
   }

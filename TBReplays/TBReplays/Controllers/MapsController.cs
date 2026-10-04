@@ -3,6 +3,8 @@ using TBReplays.Online;
 using Microsoft.AspNetCore.Mvc;
 using TBReplays.Maps;
 using TBReplays.Maps.Calibration;
+using Microsoft.Net.Http.Headers;
+using System.Buffers.Binary;
 
 namespace TBReplays.Controllers;
 
@@ -49,7 +51,32 @@ public sealed class MapsController : ControllerBase
     public Task<object> Surface(string mapId, CancellationToken cancellationToken) => _mapImportService.GetSurfaceAsync(mapId, cancellationToken);
 
     [HttpGet("{mapId}/textures/{fileName}")]
-    public IActionResult Texture(string mapId, string fileName) => PhysicalFile(_mapImportService.GetTexturePath(mapId, fileName), "image/vnd-ms.dds", enableRangeProcessing: true);
+    public IActionResult Texture(string mapId, string fileName) => Artifact(_mapImportService.GetTexturePath(mapId, fileName), "image/vnd-ms.dds");
+
+    private PhysicalFileResult Artifact(string path, string contentType) {
+        var info = new FileInfo(path);
+        Response.Headers.CacheControl = "private, max-age=0, must-revalidate";
+        return new PhysicalFileResult(path, contentType) {
+            EnableRangeProcessing = true, LastModified = info.LastWriteTimeUtc,
+            EntityTag = new EntityTagHeaderValue($"\"{info.Length:x}-{info.LastWriteTimeUtc.Ticks:x}\"", isWeak: true)
+        };
+    }
+
+    [HttpGet("{mapId}/terrain/chunks.bin")]
+    public async Task GetTerrainChunks(string mapId, CancellationToken cancellationToken) {
+        var manifest = await _mapImportService.GetManifestAsync(mapId, cancellationToken);
+        var paths = manifest.Chunks.Select(chunk => _mapImportService.GetChunkPath(mapId, chunk.X, chunk.Y)).ToArray();
+        // One streamed response replaces 16–64 round trips; no archive or temporary file is created.
+        Response.ContentType = "application/octet-stream";
+        var header = new byte[4]; BinaryPrimitives.WriteInt32LittleEndian(header, paths.Length);
+        await Response.Body.WriteAsync(header, cancellationToken);
+        foreach (var path in paths) {
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            BinaryPrimitives.WriteInt32LittleEndian(header, checked((int)stream.Length));
+            await Response.Body.WriteAsync(header, cancellationToken);
+            await stream.CopyToAsync(Response.Body, cancellationToken);
+        }
+    }
 
     [HttpGet("{mapId}/manifest")]
     public async Task<ActionResult<MapManifestDto>> GetManifest(
@@ -69,10 +96,9 @@ public sealed class MapsController : ControllerBase
     {
         var chunkPath = _mapImportService.GetChunkPath(mapId, chunkX, chunkY);
 
-        return PhysicalFile(
+        return Artifact(
             chunkPath,
-            "application/octet-stream",
-            enableRangeProcessing: true);
+            "application/octet-stream");
     }
 
     [HttpGet("{mapId}/objects")]
@@ -104,10 +130,9 @@ public sealed class MapsController : ControllerBase
     {
         var path = _mapImportService.GetObjectMeshPath(mapId);
 
-        return PhysicalFile(
+        return Artifact(
             path,
-            "application/octet-stream",
-            enableRangeProcessing: true);
+            "application/octet-stream");
     }
     
     [HttpGet("{mapId}/terrain/texture/manifest")]
@@ -127,10 +152,9 @@ public sealed class MapsController : ControllerBase
     {
         var path = _mapImportService.GetTerrainTexturePath(mapId);
 
-        return PhysicalFile(
+        return Artifact(
             path,
-            "image/vnd-ms.dds",
-            enableRangeProcessing: true);
+            "image/vnd-ms.dds");
     }
     
     [HttpGet("{mapId}/calibration")]
