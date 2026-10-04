@@ -155,5 +155,13 @@ systemctl daemon-reload
 systemctl enable --now tbreplays.service tbreplays-certbot.timer caddy
 systemctl reload caddy
 curl --fail --silent --show-error "https://$SITE_IP/" >/dev/null
-curl --fail --silent --show-error "https://$SITE_IP/api/auth/csrf" >/dev/null
+# systemctl start returns before Kestrel has completed startup. Caddy may briefly return 502.
+if ! curl --fail --silent --show-error --connect-timeout 5 --max-time 10 \
+    --retry 12 --retry-delay 2 --retry-max-time 60 --retry-connrefused \
+    "https://$SITE_IP/api/auth/csrf" >/dev/null; then
+    echo 'Backend did not become ready. Startup diagnostics:' >&2
+    systemctl status tbreplays.service --no-pager >&2 || true
+    journalctl -u tbreplays.service -n 60 --no-pager >&2 || true
+    exit 1
+fi
 echo "Ready: https://$SITE_IP/ (maps and accounts preserved; backup: $BACKUP)"
