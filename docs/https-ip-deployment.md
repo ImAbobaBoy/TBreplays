@@ -4,6 +4,8 @@
 
 Источник: https://letsencrypt.org/2026/03/11/shorter-certs-certbot/ . Caddy: https://caddyserver.com/docs/caddyfile/directives/tls .
 
+Скрипт подключает официальный стабильный APT-репозиторий Caddy вместе с его ключом подписи пакетов: https://caddyserver.com/docs/install#debian-ubuntu-raspbian . Это позволяет установить Caddy даже без компонента universe в репозиториях Ubuntu. Если прежняя версия остановилась с `Unable to locate package caddy`, достаточно выполнить `git pull --ff-only` и повторить запуск скрипта.
+
 Перед запуском открыть входящие TCP 80 и 443 в панели провайдера / действующем firewall. Порт 80 нужен для ACME-проверок при каждом продлении. Бек слушает только 127.0.0.1:5000; Caddy обслуживает собранный фронт и проксирует `/api` и `/hubs` (включая WebSocket). Vite и tmux для сайта после установки не нужны. Производственное окружение сохраняет Secure-cookie; HTTPS определяется через доверенный локальный прокси.
 
 Команды на Ubuntu-сервере от root:

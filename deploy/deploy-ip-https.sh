@@ -31,6 +31,18 @@ ONLINE_DATA=${TBREPLAYS_ONLINE_DATA:-$ONLINE_DATA}
 [[ -f "$ONLINE_DATA/users.json" ]] || { echo "Existing users.json missing in $ONLINE_DATA; set TBREPLAYS_ONLINE_DATA to the current account directory"; exit 1; }
 
 apt-get update
+apt-get install -y debian-keyring debian-archive-keyring apt-transport-https ca-certificates curl gnupg
+# Ubuntu installations without universe do not expose caddy. Use its official stable repository.
+CADDY_REPO_TEMP=$(mktemp -d)
+trap 'rm -rf -- "$CADDY_REPO_TEMP"' EXIT
+curl --fail --silent --show-error --location --proto '=https' \
+    https://dl.cloudsmith.io/public/caddy/stable/gpg.key -o "$CADDY_REPO_TEMP/gpg.key"
+gpg --batch --yes --dearmor -o "$CADDY_REPO_TEMP/caddy.gpg" "$CADDY_REPO_TEMP/gpg.key"
+curl --fail --silent --show-error --location --proto '=https' \
+    https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt -o "$CADDY_REPO_TEMP/caddy.list"
+install -m 644 "$CADDY_REPO_TEMP/caddy.gpg" /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+install -m 644 "$CADDY_REPO_TEMP/caddy.list" /etc/apt/sources.list.d/caddy-stable.list
+apt-get update
 apt-get install -y caddy python3-venv
 [[ -x /opt/tbreplays-certbot/bin/python ]] || python3 -m venv /opt/tbreplays-certbot
 /opt/tbreplays-certbot/bin/python -m pip install --upgrade 'certbot>=5.4'
