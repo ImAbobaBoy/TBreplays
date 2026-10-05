@@ -913,9 +913,13 @@ export class ReplayLayer {
     material: THREE.Material,
     opacity: number,
   ): void {
-    material.transparent = opacity < 0.999;
+    // Sprite textures contain transparent corners even at full object opacity.
+    // Keep them in the transparent pass, after replay paths and shot beams.
+    const texturedSprite = material instanceof THREE.SpriteMaterial && material.map !== null;
+    const transparent = texturedSprite || opacity < 0.999;
+    material.transparent = transparent;
     material.opacity = opacity;
-    material.depthWrite = opacity >= 0.999;
+    material.depthWrite = !transparent;
     material.needsUpdate = true;
   }
 

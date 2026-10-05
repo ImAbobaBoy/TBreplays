@@ -85,6 +85,17 @@ layer.updateView(viewCamera,600); assert.ok(beam.scale.x>4, 'A tracer stays at l
 layer.setTime(8); assert.equal(beam.visible, false);
 layer.setTime(1.1); assert.equal(beam.visible, true, 'Seeking back restores the shot');
 const selected = layer.tankEntries.get(1);
+for (const dimmed of [true, false]) {
+  layer.setTankVisualAppearance(selected.visual, '#4880ff', dimmed);
+  const label = selected.visual.labelSprite;
+  assert.equal(label.material.transparent, true, 'Tank visibility changes retain transparent plate corners');
+  assert.equal(label.material.depthWrite, false, 'Plate corners do not write a rectangular depth mask');
+  assert.equal(label.material.depthTest, false, 'Replay paths cannot depth-occlude the plate');
+  assert.ok(label.renderOrder > beam.renderOrder, 'Plate draws after shot beams');
+  layer.tracksRoot.traverse(object => {
+    if (object.isLine2) assert.ok(label.renderOrder > object.renderOrder, 'Plate draws after movement paths');
+  });
+}
 const addedSprite = new THREE.Sprite(); selected.visual.root.add(addedSprite);
 layer.selectAt({ intersectObjects: () => [{ object: addedSprite }] });
 assert.equal(selected.visual.selectionRing.visible, true, 'Child sprites resolve tank selection through ancestor');
