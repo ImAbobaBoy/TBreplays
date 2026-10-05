@@ -1,4 +1,7 @@
-import type { ReplayTeamHealthState, ReplayTeamHealthSideState } from '../../domain/ReplayModels';
+import type { ReplayTeamHealthState, ReplayTeamHealthSideState, ReplayPlaybackState } from '../../domain/ReplayModels';
+import type { ViewerEngine } from '../../engine/ViewerEngine';
+import { useReplayClock } from './useReplayClock';
+import { useEffect, useRef, useState } from 'react';
 import { getReplayTeamKind } from '../../engine/replay/ReplayTrackBuilder';
 import { selectReplayReload } from '../../engine/replay/ReplayReload';
 import './replayBattleOverlay.css';
@@ -8,22 +11,35 @@ const value = (n: number | null | undefined) => n == null ? '—' : n.toLocaleSt
 function Team({ team, kind }: { team: ReplayTeamHealthSideState | null; kind: string }) {
   const fraction = team?.initialHp && team.lastKnownHp != null
     ? Math.max(0, Math.min(1, team.lastKnownHp / team.initialHp)) : null;
+  // Standard Supremacy victory threshold: 1,000 points.
+  const pointsFraction = team?.supremacyPoints == null ? 0 : Math.max(0, Math.min(1, team.supremacyPoints / 1000));
   return <div className={`replay-battle-team ${kind}`}>
-    <span>{team?.label ?? 'Команда не определена'}</span>
-    <strong title={team?.hasUnobservedHealth ? 'Включает последние известные HP скрытых танков' : undefined}>
-      {team?.hasUnobservedHealth ? '≈ ' : ''}{value(team?.lastKnownHp)} / {value(team?.initialHp)} HP
-    </strong>
     <div className="replay-battle-hp" role="meter" aria-label={`${team?.label ?? 'Команда'}: HP`}
       aria-valuemin={0} aria-valuemax={team?.initialHp ?? undefined}
       aria-valuenow={team?.lastKnownHp ?? undefined} aria-valuetext={value(team?.lastKnownHp)}>
-      <span style={{ width: `${(fraction ?? 0) * 100}%` }} />
+      <span className="replay-team-bar-fill" style={{ width: `${(fraction ?? 0) * 100}%` }} />
+      <strong title={team?.hasUnobservedHealth ? 'Включает последние известные HP скрытых танков' : undefined}>
+        {team?.hasUnobservedHealth ? '≈ ' : ''}{value(team?.lastKnownHp)} / {value(team?.initialHp)}
+      </strong>
     </div>
-    <b className="replay-battle-points">Превосходство: {value(team?.supremacyPoints)}</b>
-    <small className="replay-battle-frags">Фраги <b>{value(team?.confirmedKills)}</b></small>
+    <div className="replay-battle-points">
+      <b>{value(team?.supremacyPoints)}</b>
+      <div className="replay-battle-supremacy" role="meter" aria-label={`${team?.label ?? 'Команда'}: превосходство`}
+        aria-valuemin={0} aria-valuemax={1000} aria-valuenow={team?.supremacyPoints ?? undefined}
+        aria-valuetext={value(team?.supremacyPoints)}>
+        <span className="replay-team-bar-fill" style={{ width: `${pointsFraction * 100}%` }} />
+      </div>
+    </div>
   </div>;
 }
 
-export function ReplayBattleOverlay({ data }: { data: ReplayTeamHealthState | null }) {
+export function ReplayBattleOverlay({ data, playback, engine }: { data: ReplayTeamHealthState | null; playback: ReplayPlaybackState; engine: ViewerEngine | null }) {
+  const time = useReplayClock(playback);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  useEffect(() => {
+    setSelectedId(engine?.getSelectedReplayEntity() ?? null);
+    return engine?.subscribeReplaySelection(setSelectedId);
+  }, [engine, playback.replayId]);
   if (!data) return null;
   const { presentation, resultVisible } = data;
   const recorderTeamId = data.ally?.teamId ?? presentation.recorderTeamId;
@@ -34,6 +50,9 @@ export function ReplayBattleOverlay({ data }: { data: ReplayTeamHealthState | nu
     : outcome.winnerTeamId === recorderTeamId ? 'Победа' : 'Поражение';
   return <div className="replay-battle-overlay">
     <div className="replay-battle-scoreboard">
+      <strong className="replay-battle-score" aria-label="Счёт">
+        {value(data.ally?.confirmedKills)}:{value(data.enemy?.confirmedKills)}
+      </strong>
       <Team team={data.ally} kind="ally" /><Team team={data.enemy} kind="enemy" />
     </div>
     {(['ally', 'enemy'] as const).map(kind => {
@@ -45,24 +64,26 @@ export function ReplayBattleOverlay({ data }: { data: ReplayTeamHealthState | nu
           const maximum = vehicle.initialHp ?? vehicle.effectiveHp ?? null;
           const fraction = maximum && health != null ? Math.max(0, Math.min(1, health / maximum)) : 0;
           const reloadTrack = kind === 'ally' ? presentation.playback?.vehicles.find(track => track.entityId === vehicle.entityId) : null;
-          const reload = selectReplayReload(reloadTrack?.reload ?? [], data.time);
+          const reload = selectReplayReload(reloadTrack?.reload ?? [], time);
           const reloadFraction = state?.isAlive === false ? 0 : reload.fraction;
           const reloadLabel = state?.isAlive === false ? 'Танк уничтожен'
             : reload.fraction == null ? (presentation.vehicleStateProtocolVersion ?? 0) < 1
               ? 'Повторно импортируйте реплей для получения данных перезарядки' : 'Данных о перезарядке нет'
             : reload.remainingSeconds === 0 ? 'Орудие заряжено' : `Перезарядка: ${reload.remainingSeconds!.toFixed(1)} с`;
-          return <div className={`replay-battle-player${state?.isAlive === false ? ' destroyed' : ''}`} key={vehicle.entityId}
+          return <button type="button" onClick={() => engine?.selectReplayEntity(vehicle.entityId)}
+            aria-pressed={selectedId === vehicle.entityId}
+            className={`replay-battle-player${state?.isAlive === false ? ' destroyed' : ''}`} key={vehicle.entityId}
             title={`${vehicle.nickname} · ${vehicle.vehicleName ?? vehicle.vehicleKey ?? 'Танк неизвестен'} · ${value(health)} ХП${state?.healthIsLastKnown ? ' (последнее известное)' : ''}`}>
             <span className="replay-player-fill" style={{ width: `${fraction * 100}%` }} />
-            <div className="replay-player-heading"><strong>{vehicle.nickname}</strong><b>{state?.healthIsLastKnown ? '≈ ' : ''}{value(health)}</b></div>
+            <span className="replay-player-heading"><strong>{vehicle.nickname}</strong><b>{state?.healthIsLastKnown ? '≈ ' : ''}{value(health)}</b></span>
             <small>{vehicle.vehicleName ?? vehicle.vehicleKey ?? 'Танк неизвестен'}</small>
             <span className="replay-player-meter" role="meter" aria-label={`${vehicle.nickname}: ХП`} aria-valuemin={0} aria-valuemax={maximum ?? undefined} aria-valuenow={health ?? undefined} />
             {kind === 'ally' && <span className={`replay-player-reload${reloadFraction == null ? ' unknown' : ''}`}
               role="meter" aria-label={`${vehicle.nickname}: перезарядка`} aria-valuemin={0} aria-valuemax={100}
               aria-valuenow={reloadFraction == null ? undefined : Math.round(reloadFraction * 100)} aria-valuetext={reloadLabel} title={reloadLabel}>
-              <span style={{ width: `${(reloadFraction ?? 0) * 100}%` }} />
+              <ReloadFill fraction={reloadFraction ?? 0} playing={playback.isPlaying} revision={playback.revision} />
             </span>}
-          </div>;
+          </button>;
         })}
       </div>;
     })}
@@ -95,6 +116,13 @@ export function ReplayBattleOverlay({ data }: { data: ReplayTeamHealthState | nu
       </div>
     </details>
   </div>;
+}
+
+function ReloadFill({ fraction, playing, revision }: { fraction: number; playing: boolean; revision: number }) {
+  const previous = useRef({ fraction, revision });
+  const smooth = playing && revision === previous.current.revision && fraction >= previous.current.fraction;
+  useEffect(() => { previous.current = { fraction, revision }; }, [fraction, revision]);
+  return <span style={{ width: `${fraction * 100}%`, transition: smooth ? 'width 40ms linear' : 'none' }} />;
 }
 
 function extraStateLabel(state: string): string {

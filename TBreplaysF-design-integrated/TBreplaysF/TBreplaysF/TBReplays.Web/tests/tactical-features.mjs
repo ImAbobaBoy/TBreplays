@@ -11,7 +11,7 @@ function compile(file, imports = {}) {
   return 'data:text/javascript;base64,' + Buffer.from(code).toString('base64');
 }
 // Canvas is only used for labels; all geometry and raycasting use real Three.js.
-globalThis.document = { createElement: () => ({ width: 1, height: 1, getContext: () => new Proxy({}, { get: (_, key) => key === 'measureText' ? text => ({ width: text.length * 18 }) : key === 'createRadialGradient' ? () => ({ addColorStop() {} }) : key === 'createImageData' ? (width, height) => ({ data: new Uint8ClampedArray(width * height * 4) }) : () => {} }) }) };
+globalThis.document = { createElement: () => ({ width: 1, height: 1, getContext: () => new Proxy({}, { get: (_, key) => key === 'measureText' ? text => ({ width: text.length * 18 }) : ['createRadialGradient','createLinearGradient'].includes(key) ? () => ({ addColorStop() {} }) : key === 'createImageData' ? (width, height) => ({ data: new Uint8ClampedArray(width * height * 4) }) : () => {} }) }) };
 const transforms = compile('src/engine/MapCalibrationTransforms.ts', { three: threeUrl });
 const builder = compile('src/engine/replay/ReplayTrackBuilder.ts');
 const shotGeometry = compile('src/engine/replay/ReplayShotGeometry.ts');
@@ -19,7 +19,9 @@ const tankFactory = compile('src/engine/tanks/TankMeshFactory.ts', { three: thre
 const { createTankVisual, disposeTankVisual, updateTankLabel } = await import(tankFactory);
 const { buildReplayTimeline } = await import(builder);
 const { shotRayEnd } = await import(shotGeometry);
-const { ReplayLayer } = await import(compile('src/engine/layers/ReplayLayer.ts', { three: threeUrl, '../MapCalibrationTransforms': transforms, '../replay/ReplayTrackBuilder': builder, '../replay/ReplayShotGeometry': shotGeometry, '../tanks/TankMeshFactory': tankFactory }));
+const reloadUrl = compile('src/engine/replay/ReplayReload.ts');
+const plateUrl = compile('src/engine/replay/ReplayTankPlate.ts', {three:threeUrl});
+const { ReplayLayer } = await import(compile('src/engine/layers/ReplayLayer.ts', { three: threeUrl, '../MapCalibrationTransforms': transforms, '../replay/ReplayTrackBuilder': builder, '../replay/ReplayShotGeometry': shotGeometry, '../tanks/TankMeshFactory': tankFactory, '../replay/ReplayReload':reloadUrl, '../replay/ReplayTankPlate':plateUrl }));
 assert.equal(shotRayEnd({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, 260), null);
 assert.equal(shotRayEnd({ x: 0, y: 0, z: 0 }, { x: NaN, y: 0, z: 0 }, 260), null);
 const normalized = shotRayEnd({ x: 3, y: 4, z: 5 }, { x: 3000, y: 0, z: 4000 }, 260);
@@ -65,6 +67,21 @@ const selected = layer.tankEntries.get(1);
 const addedSprite = new THREE.Sprite(); selected.visual.root.add(addedSprite);
 layer.selectAt({ intersectObjects: () => [{ object: addedSprite }] });
 assert.equal(selected.visual.selectionRing.visible, true, 'Child sprites resolve tank selection through ancestor');
+layer.selectEntity(2);
+assert.equal(layer.getSelectedEntity(),2);
+assert.equal(selected.visual.selectionRing.visible,false);
+assert.equal(layer.tankEntries.get(2).visual.selectionRing.visible,true,'Roster selection uses the same tank highlight');
+const {updateReplayTankPlate}=await import(plateUrl);
+const plateSprite=selected.visual.labelSprite, plateMaterial=plateSprite.material;
+updateReplayTankPlate(plateSprite,'Player','Tank',1000,2000,false,.25);
+const reusedTexture=plateMaterial.map, version=reusedTexture.version;
+updateReplayTankPlate(plateSprite,'Player','Tank',1000,2000,false,.5);
+assert.equal(plateMaterial.map,reusedTexture,'Reload does not recreate a canvas/GPU texture');
+assert.equal(reusedTexture.version,version,'Reload animation does not upload textures each frame');
+assert.equal(plateSprite.userData.replayPlate.fill.value,.5);
+updateReplayTankPlate(plateSprite,'Player','Tank',900,2000,false,.5);
+assert.ok(reusedTexture.version>version,'A health change redraws the reusable plate');
+layer.selectEntity(1);
 assert.equal(selected.trackGroup.children[0].material.color.getHexString(), 'facc15');
 layer.selectAt({ intersectObjects: () => [] });
 assert.equal(selected.visual.selectionRing.visible, false);

@@ -259,6 +259,8 @@ export function updateTankLabel(
   label: string,
 ): void {
   const material = visual.labelSprite.material as THREE.SpriteMaterial;
+  if (visual.labelSprite.userData.replayPlate || visual.labelSprite.userData.labelText === label) return;
+  visual.labelSprite.userData.labelText = label;
 
   if (material.map) {
     material.map.dispose();

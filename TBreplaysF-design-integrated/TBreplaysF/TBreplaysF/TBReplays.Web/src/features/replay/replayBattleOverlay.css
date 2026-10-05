@@ -1,19 +1,22 @@
 .replay-battle-overlay {
-  position: absolute; z-index: 4; inset: 55px 12px 12px;
+  position: absolute; z-index: 4; inset: 10px 12px 12px;
   color: #f4f4f5; pointer-events: none;
   font-size: 12px; font-variant-numeric: tabular-nums;
 }
-.replay-battle-scoreboard { width:min(420px, 100%); margin:0 auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 8px 10px; background: #111318e8; border-radius: 9px; box-sizing:border-box; }
-.replay-battle-team { display: grid; gap: 5px; min-width: 0; }
+.replay-battle-scoreboard { width:min(440px, 100%); margin:0 auto; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 10px; padding:8px 10px; background:#111318e8; border:1px solid #a8c6db35; border-radius:12px; box-sizing:border-box; }
+.replay-battle-score { grid-column:1 / -1; text-align:center; font-size:30px; line-height:32px; font-weight:800; color:#fff; letter-spacing:.04em; }
+.replay-battle-team { display:grid; gap:6px; min-width:0; }
 .replay-battle-overlay .ally { --replay-team-color: #4788ff; }
 .replay-battle-overlay .enemy { --replay-team-color: #ef4444; }
 .replay-battle-overlay .neutral { --replay-team-color: #a3a3a3; }
-.replay-battle-team > span { color: var(--replay-team-color); }
-.replay-battle-team strong { font-size: clamp(11px, 1.5vw, 16px); }
-.replay-battle-hp { height: 7px; background: #ffffff20; border-radius: 4px; overflow: hidden; }
-.replay-battle-hp span { display: block; height: 100%; background: var(--replay-team-color); }
-.replay-battle-points { color: var(--replay-team-color); }
-.replay-battle-team small { color: #c4c4cb; }
+.replay-battle-hp { position:relative; height:34px; background:#1d2b38; border:1px solid #6e91ab; border-radius:8px; overflow:hidden; }
+.replay-team-bar-fill { position:absolute; top:0; bottom:0; left:0; background:var(--replay-team-color); background:linear-gradient(180deg,color-mix(in srgb,var(--replay-team-color),white 20%),color-mix(in srgb,var(--replay-team-color),#102536 55%)); transition:width 120ms linear; }
+.ally .replay-team-bar-fill { left:auto; right:0; }
+.replay-battle-hp strong { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:clamp(12px,1.25cqw,16px); font-weight:800; white-space:nowrap; text-shadow:0 1px 3px #0008; }
+.replay-battle-points { display:flex; align-items:center; justify-content:flex-end; gap:6px; height:16px; }
+.enemy .replay-battle-points { flex-direction:row-reverse; }
+.replay-battle-points > b { color:#fff; font-size:12px; line-height:16px; }
+.replay-battle-supremacy { position:relative; width:75%; flex-shrink:0; height:9px; border:1px solid #6e91ab75; border-radius:4px; background:#1d2b38; overflow:hidden; }
 .replay-battle-result { position:absolute; bottom:32px; left:20%; right:20%; background: #111318ed; text-align: center; padding: 6px; border-radius: 6px; }
 .replay-battle-details { position:absolute; bottom:0; left:20%; right:20%; pointer-events: auto; background: #111318ed; border-radius: 6px; }
 .replay-battle-details summary { cursor: pointer; padding: 6px 12px; }
@@ -22,7 +25,7 @@
 .replay-battle-details th, .replay-battle-details td { padding: 6px; border-bottom: 1px solid #ffffff18; vertical-align: top; }
 .replay-battle-details td:first-child { color: var(--replay-team-color); }
 .replay-battle-details small { display: block; color: #bdbdc7; }
-.replay-battle-roster { position:absolute; top:118px; bottom:36px; width:clamp(115px, 26%, 200px); overflow:auto; scrollbar-width:thin; pointer-events:auto; display:flex; flex-direction:column; gap:5px; }
+.replay-battle-roster { position:absolute; top:163px; bottom:36px; width:clamp(115px, 26%, 200px); overflow:auto; scrollbar-width:thin; pointer-events:auto; display:flex; flex-direction:column; gap:5px; }
 .replay-battle-roster.ally { left:0; }
 .replay-battle-roster.enemy { right:0; }
 .replay-battle-roster::-webkit-scrollbar { width:4px; background:transparent; }
@@ -35,10 +38,38 @@
 .replay-battle-player small { display:block; margin-top:3px; font-size:10px; color:#dddde5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .replay-battle-player.destroyed { color:#9b9ba4; }
 .replay-battle-player.destroyed small { color:#85858f; }
-.replay-battle-frags b { font-size:16px; color:var(--replay-team-color); }
 .replay-player-meter { display:none; }
-.replay-battle-roster.ally .replay-battle-player { padding-bottom:11px; }
 .replay-player-reload { position:absolute; left:0; right:0; bottom:0; height:3px; background:#ffffff18; }
 .replay-player-reload > span { display:block; height:100%; background:#fff; }
 .replay-player-reload.unknown { background:repeating-linear-gradient(90deg,#ffffff25 0 3px,transparent 3px 6px); }
-@media (max-width:600px) { .replay-battle-overlay { inset:55px 6px 6px; } .replay-battle-scoreboard { gap:6px; } .replay-battle-roster { width:30%; } }
+@media (max-width:600px) { .replay-battle-overlay { inset:10px 6px 6px; } .replay-battle-scoreboard { gap:6px; } .replay-battle-roster { width:30%; } }
+
+/* Size against the map viewport, including landscape tablets with short screens. */
+.tbr-design .viewer-slot { container-type:size; container-name:replay-view; }
+.replay-battle-roster { width:clamp(112px,16cqw,190px); gap:4px; }
+.replay-battle-overlay button.replay-battle-player {
+  display:flex; flex-direction:column; justify-content:center; width:100%; min-height:0;
+  height:clamp(30px,calc((100cqh - 198px) / 7 - 4px),50px);
+  box-sizing:border-box; padding:2px 8px 4px; color:inherit; font:inherit; line-height:12px; text-align:left;
+  cursor:pointer; touch-action:manipulation; transition:border-color 120ms,background 120ms;
+}
+.replay-battle-player[aria-pressed="true"] { border-color:#bcd9ff; box-shadow:inset 0 0 0 1px #bcd9ff; }
+.replay-battle-player:focus-visible { outline:2px solid #bcd9ff; outline-offset:-2px; }
+.replay-player-heading strong { font-size:clamp(9px,1cqw,11px); }
+.replay-player-heading b { font-size:clamp(10px,1cqw,12px); }
+.replay-player-heading { width:100%; line-height:12px; }
+.replay-battle-player small { width:100%; margin-top:1px; line-height:10px; }
+@container replay-view (max-height:600px) {
+  .replay-battle-scoreboard { width:min(410px,100%); padding:5px 8px; gap:4px 8px; }
+  .replay-battle-score { font-size:26px; line-height:28px; }
+  .replay-battle-team { gap:4px; }
+  .replay-battle-hp { height:28px; }
+  .replay-battle-points { height:14px; }
+  .replay-battle-roster { top:137px; bottom:30px; }
+}
+@container replay-view (max-width:700px) {
+  .replay-battle-scoreboard { width:min(320px,100%); }
+  .replay-battle-roster { width:clamp(100px,25cqw,155px); }
+  .replay-battle-overlay button.replay-battle-player { padding-inline:5px; }
+  .replay-battle-details { left:0; right:0; }
+}

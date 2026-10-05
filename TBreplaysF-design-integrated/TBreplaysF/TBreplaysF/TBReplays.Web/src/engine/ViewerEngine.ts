@@ -156,6 +156,16 @@ export class ViewerEngine {
   private replayLoadGeneration = 0;
   private selectedTool: ViewerTool = 'select';
   private pointerStart = { x: 0, y: 0 };
+  private readonly replaySelectionListeners = new Set<(id: number | null) => void>();
+  public subscribeReplaySelection(handler: (id: number | null) => void): () => void {
+    this.replaySelectionListeners.add(handler);
+    return () => { this.replaySelectionListeners.delete(handler); };
+  }
+  public selectReplayEntity(entityId: number | null): void {
+    this.replayLayer.selectEntity(entityId);
+    this.replaySelectionListeners.forEach(handler => handler(this.replayLayer.getSelectedEntity()));
+  }
+  public getSelectedReplayEntity(): number | null { return this.replayLayer.getSelectedEntity(); }
   private readonly beginReplaySelection = (event: PointerEvent) => { this.pointerStart = { x: event.clientX, y: event.clientY }; };
   private readonly selectReplayTank = (event: MouseEvent) => {
     if (this.cameraMode === 'flight' || this.selectedTool !== 'select' || Math.hypot(event.clientX - this.pointerStart.x, event.clientY - this.pointerStart.y) > 5) return;
@@ -164,6 +174,7 @@ export class ViewerEngine {
     ray.setFromCamera(new THREE.Vector2((event.clientX - bounds.left) / bounds.width * 2 - 1,
       -(event.clientY - bounds.top) / bounds.height * 2 + 1), this.camera);
     this.replayLayer.selectAt(ray);
+    this.replaySelectionListeners.forEach(handler => handler(this.replayLayer.getSelectedEntity()));
   };
 
   public constructor(container: HTMLDivElement) {

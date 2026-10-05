@@ -28,6 +28,7 @@ import {
 } from '../../domain/WorkspaceModels';
 import type { ViewerEngine } from '../../engine/ViewerEngine';
 import { ReplayBattleOverlay } from '../replay/ReplayBattleOverlay';
+import { useReplayClock } from '../replay/useReplayClock';
 import { ViewerHost } from '../../engine/ViewerHost';
 
 type WorkspaceReplayRow = {
@@ -345,7 +346,7 @@ export function UserWorkspace({
                 <div className="timeline-row">
                   <span className="timeline-edge left">0</span>
                   <div className="progress-wrap">
-                    <ReplayTimelineInput time={state.playback.time} min={state.playback.minTime} max={maxTime}
+                    <ReplayTimelineInput playback={state.playback} time={state.playback.time} min={state.playback.minTime} max={maxTime}
                       disabled={!canControlReplay} onSeek={onSeekReplayTo} />
                   </div>
                   <span className="timeline-edge right">{formatTimelineTime(state.playback.maxTime)}</span>
@@ -555,7 +556,7 @@ export function UserWorkspace({
                     onEngineReady(engine);
                   }}
                 />
-                {state.replayLoaded && <ReplayBattleOverlay data={state.replayTeamHealth} />}
+                {state.replayLoaded && <ReplayBattleOverlay data={state.replayTeamHealth} playback={state.playback} engine={presenceEngine} />}
               </div>
             </div>
           </section>
@@ -772,16 +773,14 @@ function formatDuration(time: number) {
 
 function formatTimelineTime(time: number) {
   if (!Number.isFinite(time)) {
-    return '00:00:00.000';
+    return '00:00';
   }
 
-  const totalMilliseconds = Math.max(0, Math.round(time * 1000));
+  const totalMilliseconds = Math.max(0, Math.floor(time) * 1000);
   const hours = Math.floor(totalMilliseconds / 3_600_000);
   const minutes = Math.floor(totalMilliseconds % 3_600_000 / 60_000);
   const seconds = Math.floor(totalMilliseconds % 60_000 / 1000);
-  const milliseconds = totalMilliseconds % 1000;
-
-  return [hours, minutes, seconds].map((value) => value.toString().padStart(2, '0')).join(':') + `.${milliseconds.toString().padStart(3, '0')}`;
+  return (hours ? [hours, minutes, seconds] : [minutes, seconds]).map(value => value.toString().padStart(2, '0')).join(':');
 }
 
 function PlayIcon() { return <svg className="playback-svg" viewBox="0 0 20 20"><path className="rounded-play-shape" d="M7.1 5.8c0-1.25 1.38-2.01 2.43-1.34l5.08 3.23c1.21.77 1.21 2.55 0 3.32l-5.08 3.23c-1.05.67-2.43-.09-2.43-1.34Z" /></svg>; }
@@ -801,9 +800,10 @@ function TankMarkerIcon({ type }: { type: TankVisualKey }) {
   return <svg className="marker-option-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M4.2 7.1h15.6L12 20.9Z" /></svg>;
 }
 
-function ReplayTimelineInput({ time, min, max, disabled, onSeek }: {
-  time: number; min: number; max: number; disabled: boolean; onSeek: (time: number) => void;
+function ReplayTimelineInput({ playback, min, max, disabled, onSeek }: {
+  playback: ReplayPlaybackState; time: number; min: number; max: number; disabled: boolean; onSeek: (time: number) => void;
 }) {
+  const time = useReplayClock(playback);
   const [draft, setDraft] = useState<number | null>(null);
   const pending = useRef<number | null>(null);
   const commit = () => {
@@ -812,7 +812,7 @@ function ReplayTimelineInput({ time, min, max, disabled, onSeek }: {
   };
   useEffect(() => { if (disabled) { pending.current = null; setDraft(null); } }, [disabled]);
   const displayed = draft ?? time;
-  const progress = Math.max(0, Math.min(100, (displayed - min) / (max - min) * 100));
+  const progress = Math.max(0, Math.min(100, (displayed - min) / Math.max(.001, max - min) * 100));
   return <><div className="progress-rail">
     <span className="progress-fill" style={{ width: `${progress}%` }} />
     <span className="progress-handle" style={{ left: `${progress}%` }} />
@@ -822,5 +822,5 @@ function ReplayTimelineInput({ time, min, max, disabled, onSeek }: {
     onPointerDown={event => event.currentTarget.setPointerCapture(event.pointerId)}
     onPointerUp={commit} onKeyUp={commit} onBlur={commit}
     onPointerCancel={() => { pending.current = null; setDraft(null); }} />
-    </div><span className="current-time" style={{ left: `${progress}%` }}>{formatTimelineTime(displayed)}</span></>;
+    </div><span className="current-time" aria-label="Время реплея">{formatTimelineTime(displayed)}</span></>;
 }

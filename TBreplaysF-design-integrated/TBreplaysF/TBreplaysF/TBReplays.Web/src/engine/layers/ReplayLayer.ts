@@ -12,6 +12,8 @@ import type {
 import type { ManualTankModel } from '../../domain/TankModels';
 import { mapReplayPositionToThree } from '../MapCalibrationTransforms';
 import { shotRayEnd } from '../replay/ReplayShotGeometry';
+import { selectReplayReload } from '../replay/ReplayReload';
+import { updateReplayTankPlate } from '../replay/ReplayTankPlate';
 import {
   findLastVisibleSampleTime,
   findLastVisibleTime,
@@ -86,9 +88,15 @@ export class ReplayLayer {
     const hit = raycaster.intersectObjects([...this.tankEntries.values()].filter(entry => entry.visual.root.visible).map(entry => entry.visual.root), true)[0];
     let object: THREE.Object3D | null = hit?.object ?? null;
     while (object && object.userData.replayEntityId === undefined) object = object.parent;
-    this.selectedEntityId = object ? Number(object.userData.replayEntityId) : null;
+    this.selectEntity(object ? Number(object.userData.replayEntityId) : null);
+  }
+
+  public selectEntity(entityId: number | null): void {
+    this.selectedEntityId = entityId !== null && this.tankEntries.has(entityId) ? entityId : null;
     this.setTime(this.currentTime);
   }
+
+  public getSelectedEntity(): number | null { return this.selectedEntityId; }
 
   public constructor(root: THREE.Group) {
     this.root = root;
@@ -285,6 +293,13 @@ export class ReplayLayer {
     );
     this.updateConsumableIndicators(entry, time, isDimmed);
     this.updateActiveEffectGlow(entry, time, isDimmed);
+    const vehicle = this.timeline?.presentation.vehicles.find(v => v.entityId === entry.track.entityId);
+    const reload = this.timeline?.presentation.playback?.vehicles.find(v => v.entityId === entry.track.entityId)?.reload;
+    updateReplayTankPlate(entry.visual.labelSprite, entry.track.nickname || entry.track.entityHex,
+      vehicle?.vehicleName ?? vehicle?.vehicleKey ?? '', displayedHealth,
+      vehicle?.initialHp ?? vehicle?.effectiveHp ?? null,
+      this.getVehicleState(entry.track.entityId, time)?.healthIsLastKnown ?? false,
+      !isEnemy && !isDead ? selectReplayReload(reload ?? [], time).fraction : null, isEnemy);
     entry.lastRenderedLabel = model.label;
   }
 
