@@ -20,6 +20,7 @@ export class SurfaceTextureLayer {
   ) {
     this.api = api;
     this.renderer = renderer;
+    this.ddsLoader.setRenderer(renderer);
   }
 
   public async load(

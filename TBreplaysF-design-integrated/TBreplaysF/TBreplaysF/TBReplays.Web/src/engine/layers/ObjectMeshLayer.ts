@@ -30,6 +30,7 @@ export class ObjectMeshLayer {
     this.root = root;
     this.api = api;
     this.renderer = renderer;
+    this.ddsLoader.setRenderer(renderer);
   }
 
   public async load(mapId: string, gameplayBounds: THREE.Box3): Promise<void> {

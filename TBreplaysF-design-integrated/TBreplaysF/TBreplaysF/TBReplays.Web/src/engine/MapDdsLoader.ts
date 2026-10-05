@@ -1,8 +1,16 @@
 import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import * as THREE from 'three';
+import { decodeDxt, reduceRgba } from './DdsRgba';
 
 /** Accept both packed RGBA and BGRA DDS without passing invalid textures to WebGL. */
 export class MapDdsLoader extends DDSLoader {
+  private renderer: THREE.WebGLRenderer | null = null;
+
+  public setRenderer(renderer: THREE.WebGLRenderer): this {
+    this.renderer = renderer;
+    return this;
+  }
+
   // Parsing inside Three's load callback can throw without rejecting loadAsync.
   // Keep parsing inside this async function so every request always settles.
   public override async loadAsync(url: string): Promise<THREE.CompressedTexture> {
@@ -13,10 +21,46 @@ export class MapDdsLoader extends DDSLoader {
     });
     if (!response.ok) throw new Error(`DDS HTTP ${response.status}: ${url}`);
     const parsed = this.parse(await response.arrayBuffer());
-    const texture = new THREE.CompressedTexture(parsed.mipmaps, parsed.width, parsed.height);
+    const kind = new Map<number, 'DXT1' | 'DXT3' | 'DXT5'>([
+      [THREE.RGB_S3TC_DXT1_Format, 'DXT1'], [THREE.RGBA_S3TC_DXT1_Format, 'DXT1'],
+      [THREE.RGBA_S3TC_DXT3_Format, 'DXT3'], [THREE.RGBA_S3TC_DXT5_Format, 'DXT5'],
+    ]).get(parsed.format);
+    // Object textures are sRGB; terrain masks are linear. Both extensions are needed.
+    const extensions = this.renderer?.extensions;
+    const decode = !!kind && !!this.renderer && !(extensions?.has('WEBGL_compressed_texture_s3tc')
+      && extensions.has('WEBGL_compressed_texture_s3tc_srgb'));
+    const gpuLimit = this.renderer?.capabilities.maxTextureSize ?? Infinity;
+    // RGBA expands DXT by 4–8x. Use existing mips to bound memory on mobile GPUs.
+    const limit = decode ? Math.min(gpuLimit, 2048) : gpuLimit;
+    let mipmaps = parsed.mipmaps;
+    let first = mipmaps.findIndex(mip => mip.width <= limit && mip.height <= limit);
+    if (first < 0) first = mipmaps.length - 1;
+    mipmaps = mipmaps.slice(first);
+    if (decode || (parsed.format === THREE.RGBAFormat && Math.max(mipmaps[0].width, mipmaps[0].height) > limit)) {
+      mipmaps = mipmaps.map(mip => {
+        const bytes = new Uint8Array(mip.data.buffer, mip.data.byteOffset, mip.data.byteLength);
+        let stride = 1;
+        while (Math.max(mip.width, mip.height) / stride > limit) stride *= 2;
+        return { width: Math.max(1, Math.ceil(mip.width / stride)), height: Math.max(1, Math.ceil(mip.height / stride)),
+          data: kind ? decodeDxt(bytes, mip.width, mip.height, kind, stride, parsed.format !== THREE.RGB_S3TC_DXT1_Format)
+            : reduceRgba(bytes, mip.width, mip.height, stride) };
+      });
+      parsed.format = THREE.RGBAFormat;
+    } else if (Math.max(mipmaps[0].width, mipmaps[0].height) > limit) {
+      // A DDS without smaller mips can exceed even a desktop GPU limit.
+      if (!kind) throw new Error('DDS превышает максимальный размер текстуры');
+      let stride = 1;
+      while (Math.max(mipmaps[0].width, mipmaps[0].height) / stride > limit) stride *= 2;
+      const mip = mipmaps[0];
+      const bytes = new Uint8Array(mip.data.buffer, mip.data.byteOffset, mip.data.byteLength);
+      mipmaps = [{ width: Math.max(1, Math.ceil(mip.width / stride)), height: Math.max(1, Math.ceil(mip.height / stride)),
+        data: decodeDxt(bytes, mip.width, mip.height, kind, stride, parsed.format !== THREE.RGB_S3TC_DXT1_Format) }];
+      parsed.format = THREE.RGBAFormat;
+    }
+    const texture = new THREE.CompressedTexture(mipmaps, mipmaps[0].width, mipmaps[0].height);
     // Three's DDS loader also uses CompressedTexture for uncompressed RGBA DDS.
     texture.format = parsed.format as THREE.CompressedPixelFormat;
-    texture.minFilter = parsed.mipmapCount > 1 ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
+    texture.minFilter = mipmaps.length > 1 ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
     texture.needsUpdate = true;
     return texture;
   }

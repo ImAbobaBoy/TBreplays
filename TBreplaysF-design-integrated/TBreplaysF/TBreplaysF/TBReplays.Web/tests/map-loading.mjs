@@ -12,7 +12,8 @@ function compile(file, imports = {}) {
   for (const [name, value] of Object.entries(imports)) code = code.replaceAll(`from '${name}'`, `from '${value}'`);
   return 'data:text/javascript;base64,' + Buffer.from(code).toString('base64');
 }
-const loaderUrl = compile('src/engine/MapDdsLoader.ts', { 'three': threeUrl, 'three/examples/jsm/loaders/DDSLoader.js': ddsUrl });
+const rgbaUrl = compile('src/engine/DdsRgba.ts');
+const loaderUrl = compile('src/engine/MapDdsLoader.ts', { 'three': threeUrl, 'three/examples/jsm/loaders/DDSLoader.js': ddsUrl, './DdsRgba': rgbaUrl });
 const decorationsUrl = compile('src/engine/TacticalMapObjects.ts');
 const { MapDdsLoader } = await import(loaderUrl);
 const { ObjectMeshLayer } = await import(compile('src/engine/layers/ObjectMeshLayer.ts', { 'three': threeUrl, '../MapDdsLoader': loaderUrl, '../TacticalMapObjects': decorationsUrl }));
