@@ -19,15 +19,15 @@ function Team({ team, kind }: { team: ReplayTeamHealthSideState | null; kind: st
       aria-valuenow={team?.lastKnownHp ?? undefined} aria-valuetext={value(team?.lastKnownHp)}>
       <span className="replay-team-bar-fill" style={{ width: `${(fraction ?? 0) * 100}%` }} />
       <strong title={team?.hasUnobservedHealth ? 'Включает последние известные HP скрытых танков' : undefined}>
-        {team?.hasUnobservedHealth ? '≈ ' : ''}{value(team?.lastKnownHp)} / {value(team?.initialHp)}
+        {team?.hasUnobservedHealth ? '≈ ' : ''}{value(team?.lastKnownHp)}
       </strong>
     </div>
     <div className="replay-battle-points">
-      <b>{value(team?.supremacyPoints)}</b>
       <div className="replay-battle-supremacy" role="meter" aria-label={`${team?.label ?? 'Команда'}: превосходство`}
         aria-valuemin={0} aria-valuemax={1000} aria-valuenow={team?.supremacyPoints ?? undefined}
         aria-valuetext={value(team?.supremacyPoints)}>
         <span className="replay-team-bar-fill" style={{ width: `${pointsFraction * 100}%` }} />
+        <b>{value(team?.supremacyPoints)}</b>
       </div>
     </div>
   </div>;

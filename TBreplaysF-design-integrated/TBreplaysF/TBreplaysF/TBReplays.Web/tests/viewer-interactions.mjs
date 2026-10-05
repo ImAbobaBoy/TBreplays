@@ -28,6 +28,7 @@ const plane=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshBasicM
 const controls={enabled:true},layer=new DrawingLayer(root,terrain,camera,{domElement:canvas},controls);
 const stroke={id:'line',color:'#ff0000',width:8,style:'solid',arrowMode:'none',points:[{x:-40,y:1,z:0},{x:40,y:1,z:0}]};
 layer.setStrokes([stroke]);root.updateMatrixWorld(true);layer.setTool('erase');
+root.traverse(object=>{if(object instanceof THREE.Mesh) assert.equal(object.material.depthTest,true,'Drawn lines use scene depth for occlusion');});
 const removed=[];layer.setOnlineHandlers({upsert(){},remove:id=>removed.push(id)});
 emit(canvas,'pointerdown',{button:2,buttons:2,pointerId:1,clientX:20,clientY:20});assert.equal(controls.enabled,false);assert.deepEqual(removed,[]);
 emit(window,'pointermove',{buttons:2,pointerId:1,clientX:200,clientY:200});assert.deepEqual(removed,['line'],'RMB beginning off the line erases when moving onto it');

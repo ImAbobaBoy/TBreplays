@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 
 import type { MapCalibration } from '../../domain/MapCalibration';
 import type {
@@ -14,6 +17,7 @@ import { mapReplayPositionToThree } from '../MapCalibrationTransforms';
 import { shotRayEnd } from '../replay/ReplayShotGeometry';
 import { selectReplayReload } from '../replay/ReplayReload';
 import { updateReplayTankPlate } from '../replay/ReplayTankPlate';
+import { replayTankColor, replayPathColor, replayPathProgress } from '../replay/ReplayColors';
 import {
   findLastVisibleSampleTime,
   findLastVisibleTime,
@@ -54,9 +58,6 @@ type ReplayVisibilityState = {
   intervals: ParsedReplayVisibilityInterval[];
 };
 
-const ALLY_COLOR = '#22c55e';
-const ENEMY_COLOR = '#ef4444';
-const DIMMED_ALLY_COLOR = '#14532d';
 const DIMMED_ENEMY_COLOR = '#4a1717';
 
 const INVISIBLE_TANK_OPACITY = 0.45;
@@ -97,6 +98,9 @@ export class ReplayLayer {
   }
 
   public getSelectedEntity(): number | null { return this.selectedEntityId; }
+  public getPathInfo(entityId: number): { distance: number; startTime: number | null; endTime: number | null } | null {
+    return this.tankEntries.get(entityId)?.trackGroup.userData.pathInfo ?? null;
+  }
 
   public constructor(root: THREE.Group) {
     this.root = root;
@@ -122,7 +126,7 @@ export class ReplayLayer {
 
     for (let i = 0; i < timeline.tracks.length; i++) {
       const track = timeline.tracks[i];
-      const color = this.getTeamColor(track.teamId, i);
+      const color = this.getTrackVisualColor(track, false);
       const trackGroup = this.createMovementPath(track, color, timeline);
 
       this.tracksRoot.add(trackGroup);
@@ -261,7 +265,7 @@ export class ReplayLayer {
 
     const model = this.createTankModel(
       entry.track,
-      this.getTeamColor(entry.track.teamId, 0),
+      this.getTrackVisualColor(entry.track, false),
       displayedHealth,
       time,
       pose,
@@ -353,7 +357,16 @@ export class ReplayLayer {
     const group = new THREE.Group();
     group.name = `replay_track_${track.entityHex}`;
 
-    const ordered = [...track.samples].sort((a, b) => a.time - b.time);
+    const deathTime = this.getTrackDeathTime(track);
+    const all = [...track.samples].sort((a, b) => a.time - b.time);
+    const ordered = all.filter(sample => deathTime == null || sample.time <= deathTime);
+    const last = ordered[ordered.length - 1];
+    if (deathTime != null && last && last.time < deathTime) {
+      const next = all.find(sample => sample.time > deathTime);
+      const pose = next && next.segmentIndex === last.segmentIndex && next.time - last.time <= TRACK_PATH_MAX_SAMPLE_GAP_SECONDS
+        ? sampleTrackAtTime(track, deathTime) : null;
+      if (pose) ordered.push({ ...last, time: deathTime, x: pose.x, y: pose.y, z: pose.z, yawRadians: pose.yawRadians });
+    }
 
     if (ordered.length < 2) {
       return group;
@@ -363,6 +376,9 @@ export class ReplayLayer {
       ? timeline.visibilityIntervalsByEntityId.get(track.entityId) ?? []
       : [];
     const sampleSegments = this.createMovementPathSegments(track, ordered, intervals);
+    sampleSegments.sort((a, b) => a[0].time - b[0].time);
+    const progress = replayPathProgress(sampleSegments);
+    group.userData.pathInfo = { distance: progress.distance, startTime: progress.startTime, endTime: progress.endTime };
 
     for (let segmentIndex = 0; segmentIndex < sampleSegments.length; segmentIndex++) {
       const segmentSamples = sampleSegments[segmentIndex];
@@ -376,6 +392,7 @@ export class ReplayLayer {
         segmentSamples,
         color,
         segmentIndex,
+        progress.fractions,
       );
 
       if (line) {
@@ -392,7 +409,7 @@ export class ReplayLayer {
     intervals: ParsedReplayVisibilityInterval[],
   ): ReplayMovementTrack['samples'][] {
     const visibleSampleGroups = this.isEnemyTrack(track) && intervals.length > 0
-      ? splitSamplesByVisibilityIntervals(track, intervals)
+      ? splitSamplesByVisibilityIntervals({ ...track, samples: ordered }, intervals)
       : [ordered];
     const result: ReplayMovementTrack['samples'][] = [];
 
@@ -443,7 +460,8 @@ export class ReplayLayer {
     samples: ReplayMovementTrack['samples'],
     color: string,
     segmentIndex: number,
-  ): THREE.Line | null {
+    progress: Map<ReplayMovementTrack['samples'][number], number>,
+  ): Line2 | null {
     const pathStep = Math.max(1, Math.floor(samples.length / 900));
     const pathSamples = samples.filter((_, index) => index % pathStep === 0 || index === samples.length - 1);
 
@@ -452,6 +470,8 @@ export class ReplayLayer {
     }
 
     const positions = new Float32Array(pathSamples.length * 3);
+    const colors = new Float32Array(pathSamples.length * 3);
+    const timeColor = new THREE.Color();
 
     for (let i = 0; i < pathSamples.length; i++) {
       const sample = pathSamples[i];
@@ -466,25 +486,26 @@ export class ReplayLayer {
       positions[offset] = position.x;
       positions[offset + 1] = position.y;
       positions[offset + 2] = position.z;
+      replayPathColor(progress.get(sample) ?? 0, timeColor).toArray(colors, offset);
     }
 
-    const geometry = new THREE.BufferGeometry();
-
-    geometry.setAttribute(
-      'position',
-      new THREE.BufferAttribute(positions, 3),
-    );
+    const geometry = new LineGeometry();
+    geometry.setPositions(positions);
+    geometry.setColors(colors);
 
     geometry.computeBoundingSphere();
 
-    const material = new THREE.LineBasicMaterial({
+    const material = new LineMaterial({
       color: new THREE.Color(color),
       transparent: true,
       opacity: VISIBLE_TRACK_OPACITY,
       depthWrite: false,
+      depthTest: true,
+      linewidth: 1,
+      worldUnits: false,
     });
 
-    const line = new THREE.Line(geometry, material);
+    const line = new Line2(geometry, material);
     line.name = `replay_track_${track.entityHex}_${segmentIndex}`;
 
     return line;
@@ -531,7 +552,7 @@ export class ReplayLayer {
       color: new THREE.Color(this.isEnemyTrack(track) ? '#ffac86' : '#fff4a3'),
       transparent: true,
       opacity: 0,
-      depthTest: false,
+      depthTest: true,
       depthWrite: false,
     });
     const object = this.createShotBeam(origin, target, material);
@@ -903,17 +924,22 @@ export class ReplayLayer {
     color: string,
     opacity: number,
   ): void {
+    const gradient = this.selectedEntityId !== null && group.userData.replayEntityId === this.selectedEntityId;
     if (this.selectedEntityId !== null) {
-      const selected = group.userData.replayEntityId === this.selectedEntityId;
-      if (selected) { color = '#facc15'; opacity = Math.max(opacity, 0.95); }
+      if (gradient) { color = '#ffffff'; opacity = Math.max(opacity, 0.95); }
       else opacity *= 0.25;
     }
     group.traverse((object) => {
-      if (!(object instanceof THREE.Line || object instanceof THREE.LineSegments)) {
+      if (!(object instanceof Line2 || object instanceof THREE.Line || object instanceof THREE.LineSegments)) {
         return;
       }
 
       const material = object.material;
+      if (object instanceof Line2) object.material.linewidth = gradient ? 5 : 1;
+      const materials = Array.isArray(material) ? material : [material];
+      for (const item of materials) {
+        if (item.vertexColors !== gradient) { item.vertexColors = gradient; item.needsUpdate = true; }
+      }
 
       if (Array.isArray(material)) {
         for (const item of material) {
@@ -998,14 +1024,8 @@ export class ReplayLayer {
     track: ReplayMovementTrack,
     dimmed: boolean,
   ): string {
-    if (!dimmed) {
-      return this.getTeamColor(track.teamId, 0);
-    }
-
-    if (this.timeline?.recorderTeamId == null) return '#525252';
-    return this.isEnemyTrack(track)
-      ? DIMMED_ENEMY_COLOR
-      : DIMMED_ALLY_COLOR;
+    const vehicleClass = this.timeline?.presentation.vehicles.find(vehicle => vehicle.entityId === track.entityId)?.vehicleClass;
+    return replayTankColor(getReplayTeamKind(track.teamId, this.timeline?.recorderTeamId ?? null), vehicleClass ?? undefined, dimmed);
   }
 
   private getDisplayedHealth(
@@ -1017,11 +1037,6 @@ export class ReplayLayer {
 
   private getVehicleState(entityId: number, time: number) {
     return findLatestByTime(this.timeline?.statesByEntityId.get(entityId) ?? [], time);
-  }
-
-  private getTeamColor(teamId: number, _index: number): string {
-    const kind = getReplayTeamKind(teamId, this.timeline?.recorderTeamId ?? null);
-    return kind === 'ally' ? ALLY_COLOR : kind === 'enemy' ? ENEMY_COLOR : '#a3a3a3';
   }
 
   private isEnemyTrack(track: ReplayMovementTrack): boolean {

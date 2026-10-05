@@ -12,20 +12,23 @@ function compile(file, imports = {}) {
   for(const [from,to] of Object.entries(imports)) for(const quote of ["'",'"']) code=code.replaceAll(`from ${quote}${from}${quote}`,`from '${to}'`);
   return 'data:text/javascript;base64,'+Buffer.from(code).toString('base64');
 }
-const {ReplayBattleOverlay}=await import(compile('src/features/replay/ReplayBattleOverlay.tsx',{'react':moduleUrl('node_modules/react/index.js'),'./useReplayClock':compile('src/features/replay/useReplayClock.ts',{'react':moduleUrl('node_modules/react/index.js')}),'react/jsx-runtime':moduleUrl('node_modules/react/jsx-runtime.js'),'../../engine/replay/ReplayTrackBuilder':compile('src/engine/replay/ReplayTrackBuilder.ts'),'../../engine/replay/ReplayReload':compile('src/engine/replay/ReplayReload.ts')}));
+const {ReplayBattleOverlay}=await import(compile('src/features/replay/ReplayBattleOverlay.tsx',{'react':moduleUrl('node_modules/react/index.js'),'./useReplayClock':compile('src/features/replay/useReplayClock.ts',{'react':moduleUrl('node_modules/react/index.js')}),'react/jsx-runtime':moduleUrl('node_modules/react/jsx-runtime.js'),'../../engine/replay/ReplayTrackBuilder':compile('src/engine/replay/ReplayTrackBuilder.ts'),'../../engine/replay/ReplayReload':compile('src/engine/replay/ReplayReload.ts'),'../../engine/replay/ReplayColors':compile('src/engine/replay/ReplayColors.ts',{'three':moduleUrl('node_modules/three/build/three.module.js')})}));
 const render = data => renderToStaticMarkup(createElement(ReplayBattleOverlay,{data,playback:{time:data?.time??0,minTime:0,maxTime:300,isPlaying:false,speed:1,revision:0}}));
 const vehicles=Array.from({length:14},(_,id)=>({entityId:id,nickname:`Player${id}`,vehicleName:`Tank${id}`,teamId:id<7?1:2,initialHp:2000,extras:[]}));
 const team={initialHp:14000,lastKnownHp:7000,hasUnobservedHealth:false,aliveCount:7,confirmedKills:2,supremacyPoints:220};
-const data={ally:{...team,teamId:1,label:'Команда автора'},enemy:{...team,teamId:2,label:'Противники'},states:new Map(vehicles.map(v=>[v.entityId,{health:v.entityId===1?0:1000,healthIsLastKnown:v.entityId===8,isAlive:v.entityId!==1,confirmedKills:0,extras:[]} ])),resultVisible:false,presentation:{recorderTeamId:1,vehicles,outcome:{status:'unknown'}}};
+const data={ally:{...team,confirmedKills:3,teamId:1,label:'Команда автора'},enemy:{...team,confirmedKills:1,teamId:2,label:'Противники'},states:new Map(vehicles.map(v=>[v.entityId,{health:v.entityId===1?0:1000,healthIsLastKnown:v.entityId===8,isAlive:v.entityId!==1,confirmedKills:0,extras:[]} ])),resultVisible:false,presentation:{recorderTeamId:1,vehicles,outcome:{status:'unknown'}}};
 const html=render(data);
 assert.equal((html.match(/class="replay-battle-player/g)||[]).length,14,'Both full seven-player teams remain visible');
 assert.ok(html.includes('Player13')&&html.includes('Tank13'));
 assert.ok(html.includes('width:50%'),'Health fill follows current battle HP');
 assert.ok(html.includes('width:0%'),'Destroyed vehicles have an empty HP fill');
 assert.ok(html.includes('≈ '),'Hidden enemy health remains marked as last known');
-assert.ok(html.includes('aria-label="Счёт">2:2')&&html.includes('220'));
+assert.ok(html.includes('aria-label="Счёт">3:1')&&html.includes('220'),'Score follows blue-left / red-right order');
+assert.ok(html.indexOf('class="replay-battle-team ally"') < html.indexOf('class="replay-battle-team enemy"'),'Allied HP precedes enemy HP in the header');
 assert.ok(!html.includes('Фраги')&&!html.includes('Превосходство:'),'Scoreboard has no legacy headings');
 assert.ok(html.includes('width:22%'),'Supremacy fill uses the 1000-point victory threshold');
+const maximumHtml=render({...data,ally:{...data.ally,supremacyPoints:1000},enemy:{...data.enemy,supremacyPoints:1500}});
+assert.equal((maximumHtml.match(/class="replay-team-bar-fill" style="width:100%"/g)||[]).length,2,'1000 points fill the whole supremacy track and excess points remain clamped');
 assert.equal(render(null), '');
 const {selectReplayReload}=await import(compile('src/engine/replay/ReplayReload.ts'));
 const reloadFrames=[{time:0,durationSeconds:10,startedAt:null,readyAt:null},

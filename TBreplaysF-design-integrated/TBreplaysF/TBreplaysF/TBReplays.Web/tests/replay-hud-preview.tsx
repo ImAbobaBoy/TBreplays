@@ -16,9 +16,10 @@ const engine = {
   subscribeReplaySelection: (fn: (id:number|null)=>void) => { listeners.add(fn); return () => { listeners.delete(fn); }; },
 } as unknown as ViewerEngine;
 const vehicles = Array.from({length:14},(_,id)=>({entityId:id,teamId:id<7?1:2,nickname:id===0?'ant200501':`Player_${id}_LongNickname`,vehicleName:id%2?'Объект 260':'VK 120.03 (H) Tiger-Maus',initialHp:2600,extras:[]}));
+const hp = [2500,2500,2500,1802,2450,0,2450,2059,1802,2450,2450,1365,2450,2809];
 const team = {initialHp:18200,lastKnownHp:14000,confirmedKills:2,supremacyPoints:220};
-const base = {ally:{...team,teamId:1,label:'Команда автора'},enemy:{...team,teamId:2,label:'Противники'},
-  states:new Map(vehicles.map(v=>[v.entityId,{health:2000,isAlive:true,extras:[]} ])),resultVisible:false,
+const base = {ally:{...team,lastKnownHp:14202,confirmedKills:3,supremacyPoints:516,teamId:1,label:'Команда автора'},enemy:{...team,lastKnownHp:15385,confirmedKills:1,supremacyPoints:531,teamId:2,label:'Противники'},
+  states:new Map(vehicles.map(v=>[v.entityId,{health:hp[v.entityId],isAlive:hp[v.entityId]>0,extras:[]} ])),resultVisible:false,
   presentation:{recorderTeamId:1,vehicleStateProtocolVersion:1,vehicles,outcome:{status:'unknown'},playback:{vehicles:vehicles.map(v=>({entityId:v.entityId,reload:[{time:0,durationSeconds:10,startedAt:0,readyAt:10}]}))}}} as unknown as ReplayTeamHealthState;
 
 function Plate({enemy=false}:{enemy?:boolean}) {
@@ -35,6 +36,7 @@ function Plate({enemy=false}:{enemy?:boolean}) {
 }
 function Preview() {
   const [size,setSize]=useState('1214,526');
+  const [maximumPoints,setMaximumPoints]=useState(()=>new URLSearchParams(location.search).get('points')==='1000');
   const [playback,setPlayback]=useState<ReplayPlaybackState>({replayId:'qa',minTime:0,maxTime:300,time:0,isPlaying:true,speed:1,revision:0});
   const [selection,setSelection]=useState<number|null>(null);
   useEffect(()=>engine.subscribeReplaySelection(setSelection),[]);
@@ -47,9 +49,10 @@ function Preview() {
     <label>Размер карты <select value={size} onChange={e=>setSize(e.target.value)}><option value="1214,526">Планшет 1214 × 526</option><option value="900,430">Низкая область 900 × 430</option><option value="600,760">Портрет 600 × 760</option></select></label>
     <button onClick={()=>setPlayback(p=>({...p,isPlaying:!p.isPlaying,revision:p.revision+1}))}>Пуск / пауза</button>
     <button onClick={()=>setPlayback(p=>({...p,time:0,revision:p.revision+1}))}>В начало</button>
+    <button onClick={()=>setMaximumPoints(value=>!value)}>{maximumPoints?'Обычные очки':'1000 очков'}</button>
     <p>Время: {Math.floor(time/60).toString().padStart(2,'0')}:{Math.floor(time%60).toString().padStart(2,'0')} · Выбран: {selection??'—'}</p>
     <div className="tbr-design" style={{position:'relative',width,maxWidth:'100%',height,background:'linear-gradient(145deg,#3d5141,#213335 55%,#61543e)'}}>
-      <div className="viewer-slot"><ReplayBattleOverlay data={{...base,time:playback.time}} playback={playback} engine={engine}/></div>
+      <div className="viewer-slot"><ReplayBattleOverlay data={{...base,time:playback.time,ally:maximumPoints?{...base.ally!,supremacyPoints:1000}:base.ally,enemy:maximumPoints?{...base.enemy!,supremacyPoints:1000}:base.enemy}} playback={playback} engine={engine}/></div>
     </div><div style={{display:'flex',gap:12,flexWrap:'wrap'}}><Plate/><Plate enemy/></div>
   </main>;
 }

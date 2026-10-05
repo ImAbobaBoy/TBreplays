@@ -567,7 +567,7 @@ export class TankLayer {
       color: new THREE.Color(color),
       transparent: true,
       opacity: 0.88,
-      depthTest: false,
+      depthTest: true,
     });
 
     const targetMarker = new THREE.Mesh(
@@ -590,7 +590,7 @@ export class TankLayer {
         color: new THREE.Color(color),
         transparent: true,
         opacity: 0.92,
-        depthTest: false,
+        depthTest: true,
         depthWrite: false,
       }),
     );

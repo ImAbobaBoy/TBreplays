@@ -460,7 +460,7 @@ export class DrawingLayer {
     // Убрать, когда появится backend-сохранение стратегического разбора.
     const material = new THREE.MeshBasicMaterial({
       color: new THREE.Color(stroke.userData.color as string),
-      depthTest: false,
+      depthTest: true,
       depthWrite: false,
     });
 

@@ -166,6 +166,7 @@ export class ViewerEngine {
     this.replaySelectionListeners.forEach(handler => handler(this.replayLayer.getSelectedEntity()));
   }
   public getSelectedReplayEntity(): number | null { return this.replayLayer.getSelectedEntity(); }
+  public getReplayPathInfo(entityId: number) { return this.replayLayer.getPathInfo(entityId); }
   private readonly beginReplaySelection = (event: PointerEvent) => { this.pointerStart = { x: event.clientX, y: event.clientY }; };
   private readonly selectReplayTank = (event: MouseEvent) => {
     if (this.cameraMode === 'flight' || this.selectedTool !== 'select' || Math.hypot(event.clientX - this.pointerStart.x, event.clientY - this.pointerStart.y) > 5) return;

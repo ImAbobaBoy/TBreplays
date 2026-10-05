@@ -1,5 +1,36 @@
 import * as THREE from 'three';
 
+function frame(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, enemy: boolean): void {
+  const skew = Math.min(height * 2 / 9, width / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + (enemy ? skew : 0), y);
+  ctx.lineTo(x + width - (enemy ? 0 : skew), y);
+  ctx.lineTo(x + width - (enemy ? skew : 0), y + height);
+  ctx.lineTo(x + (enemy ? 0 : skew), y + height);
+  ctx.closePath();
+}
+
+function sportsFill(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, enemy: boolean): void {
+  const color = ctx.createLinearGradient(0,y,0,y+height);
+  color.addColorStop(0,enemy?'#ff3965':'#4880ff');
+  color.addColorStop(.28,enemy?'#ff174b':'#2868ff');
+  color.addColorStop(.72,enemy?'#ed1645':'#2560ec');
+  color.addColorStop(1,enemy?'#be1239':'#1f4ec5');
+  ctx.fillStyle=color; ctx.fillRect(x,y,width,height);
+  ctx.lineWidth=1;
+  for(const [direction,stroke] of [[1,'#ffffff09'],[-1,'#0000000d']] as const) {
+    ctx.strokeStyle=stroke;ctx.beginPath();
+    for(let offset=-height;offset<width+height;offset+=16) {
+      ctx.moveTo(x+offset,y);ctx.lineTo(x+offset+direction*height,y+height);
+    }
+    ctx.stroke();
+  }
+  const shine=ctx.createLinearGradient(x,y,x+width*.25,y+height);
+  shine.addColorStop(0,'#ffffff20'); shine.addColorStop(.48,'#ffffff00');
+  ctx.fillStyle=shine;ctx.fillRect(x,y,width,height);
+  ctx.fillStyle='#ffffff75';ctx.fillRect(x,y,width,1);
+}
+
 /** One reusable canvas per tank. Reload fill is a shader uniform, not a per-frame texture upload. */
 export function updateReplayTankPlate(sprite: THREE.Sprite, name: string, tank: string,
   health: number | null, maximum: number | null, lastKnown: boolean, reload: number | null, enemy = false): void {
@@ -15,11 +46,11 @@ export function updateReplayTankPlate(sprite: THREE.Sprite, name: string, tank: 
       shader.fragmentShader = 'uniform float plateReload;\n' + shader.fragmentShader;
       shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
         #ifdef USE_MAP
-        if (vMapUv.y >= .0875 && vMapUv.y <= .1375 && vMapUv.x >= .046875 && vMapUv.x <= .953125
-            && vMapUv.x <= .046875 + .90625 * plateReload) diffuseColor = vec4(1.0);
+        if (vMapUv.y >= .0875 && vMapUv.y <= .1375 && vMapUv.x >= .078125 && vMapUv.x <= .921875
+            && vMapUv.x <= .078125 + .84375 * plateReload) diffuseColor = vec4(1.0);
         #endif`);
     };
-    material.customProgramCacheKey = () => 'replay-tank-plate-v1';
+    material.customProgramCacheKey = () => 'replay-tank-plate-v2';
     material.needsUpdate = true;
     sprite.userData.replayPlate = { canvas, fill, signature: '' };
     sprite.scale.set(22, 6.875, 1);
@@ -27,7 +58,7 @@ export function updateReplayTankPlate(sprite: THREE.Sprite, name: string, tank: 
   const plate = sprite.userData.replayPlate as { canvas: HTMLCanvasElement; fill: { value: number }; signature: string };
   plate.fill.value = reload ?? 0;
   sprite.visible = true;
-  const signature = JSON.stringify(['v3', name, tank, health, maximum, lastKnown, enemy]);
+  const signature = JSON.stringify(['v5', name, tank, health, maximum, lastKnown, enemy]);
   if (signature === plate.signature) return;
   plate.signature = signature;
   const ctx = plate.canvas.getContext('2d');
@@ -35,28 +66,25 @@ export function updateReplayTankPlate(sprite: THREE.Sprite, name: string, tank: 
   const fraction = maximum && health != null ? THREE.MathUtils.clamp(health / maximum, 0, 1) : 0;
   ctx.clearRect(0,0,512,160);
   const background = ctx.createLinearGradient(0,0,0,160);
-  background.addColorStop(0,enemy ? '#48282d' : '#24394a'); background.addColorStop(1,enemy ? '#281116' : '#101c28');
-  ctx.fillStyle = background; ctx.beginPath(); ctx.roundRect(2,2,508,156,14); ctx.fill();
-  ctx.strokeStyle = enemy ? '#d7a9aa' : '#a8c6db'; ctx.lineWidth = 2; ctx.stroke();
+  background.addColorStop(0,'#343a42'); background.addColorStop(1,'#252a30');
+  ctx.fillStyle = background; frame(ctx,2,2,508,156,enemy); ctx.fill();
+  ctx.strokeStyle = '#ffffff38'; ctx.lineWidth = 2; ctx.stroke();
   ctx.font = '20px Arial';
   const tankWidth = Math.min(168, ctx.measureText(tank).width);
-  const divider = 488 - tankWidth - 12;
+  const divider = 472 - tankWidth - 12;
   ctx.fillStyle = '#f5faff'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.font = 'bold 24px Arial';
-  ctx.fillText(name,24,31,Math.max(1,divider - 40));
+  ctx.fillText(name,40,31,Math.max(1,divider - 56));
   if (tank) { ctx.fillStyle = enemy ? '#dfbcc0' : '#b7cedf'; ctx.fillRect(divider,17,1,28); }
-  ctx.textAlign = 'right'; ctx.font = '20px Arial'; ctx.fillStyle = '#f5faff'; ctx.fillText(tank,488,31,168);
-  ctx.fillStyle = enemy ? '#321c23' : '#1d2b38'; ctx.beginPath(); ctx.roundRect(24,58,464,69,10); ctx.fill();
-  ctx.save(); ctx.clip();
-  const hp = ctx.createLinearGradient(0,58,0,127); hp.addColorStop(0,enemy ? '#ff6269' : '#469dff'); hp.addColorStop(1,enemy ? '#94202e' : '#12518b');
-  ctx.fillStyle = hp;
-  const edge = 24 + 464 * fraction;
-  ctx.beginPath(); ctx.moveTo(24,58); ctx.lineTo(edge,58);
-  ctx.lineTo(fraction === 1 ? edge : Math.max(24,edge - 22),127); ctx.lineTo(24,127); ctx.closePath(); ctx.fill();
+  ctx.textAlign = 'right'; ctx.font = '20px Arial'; ctx.fillStyle = '#f5faff'; ctx.fillText(tank,472,31,168);
+  ctx.fillStyle = '#1c2026'; frame(ctx,24,58,464,69,enemy); ctx.fill();
+  ctx.save(); frame(ctx,24,55,464,72,enemy); ctx.clip();
+  if(fraction > 0) {
+    frame(ctx,24,55,464*fraction,69,enemy);ctx.clip();
+    sportsFill(ctx,24,55,464*fraction,69,enemy);
+  }
   ctx.restore();
-  ctx.beginPath(); ctx.roundRect(24,58,464,69,10);
-  ctx.strokeStyle = enemy ? '#ad747c' : '#6e91ab'; ctx.lineWidth = 1.5; ctx.stroke();
   ctx.textAlign = 'center'; ctx.font = 'bold 29px Arial'; ctx.fillStyle = '#fff';
   ctx.fillText(`${lastKnown?'≈ ':''}${health == null?'?':Math.round(health)}/${maximum ?? '?'}`,256,94,440);
-  ctx.fillStyle = enemy ? '#46282d' : '#263845'; ctx.fillRect(24,138,464,8);
+  ctx.fillStyle = '#ffffff18'; ctx.fillRect(40,138,432,8);
   material.map!.needsUpdate = true;
 }
