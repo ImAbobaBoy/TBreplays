@@ -3,8 +3,8 @@ import type { DrawingStrokeModel } from '../../domain/DrawingModels';
 export type OnlineUser = { id: string; login: string; role: 'admin' | 'editor' | 'observer'; isPresenting?: boolean };
 export type StoredStroke = { stroke: DrawingStrokeModel; revision: number; authorId: string };
 export type StoredTank = { tank: ManualTankModel; revision: number; authorId: string };
-export type SketchState = { revision: number; mapId: string | null; mapRevision: number; strokes: StoredStroke[]; tanks?: StoredTank[]; slideId?: string | null; undoCount?: number };
-export type SketchCommand = { operationId: string; kind: 'upsert' | 'remove' | 'clear' | 'setMap' | 'upsertTank' | 'removeTank' | 'clearTanks' | 'undo';
+export type SketchState = { revision: number; mapId: string | null; mapRevision: number; strokes: StoredStroke[]; tanks?: StoredTank[]; slideId?: string | null; undoCount?: number; redoCount?: number };
+export type SketchCommand = { operationId: string; kind: 'upsert' | 'remove' | 'clear' | 'setMap' | 'upsertTank' | 'removeTank' | 'clearTanks' | 'undo' | 'redo';
   expectedRevision: number; mapRevision: number; stroke?: DrawingStrokeModel; strokeId?: string; mapId?: string; tank?: ManualTankModel; tankId?: string; slideId?: string | null; connectionId?: string | null };
 export type SketchChange = SketchCommand & { revision: number; userId: string };
 export type SketchResult = { applied: boolean; error: string | null; change: SketchChange | null };
@@ -20,7 +20,7 @@ export const roleNames = { admin: 'Администратор', editor: 'Ред�
 export function applySketchChange(state: SketchState | null, change: SketchChange): SketchState | null {
   if (!state || (state.slideId ?? null) !== (change.slideId ?? null)) return null;
   if (change.revision <= state.revision) return state;
-  if (change.revision !== state.revision + 1 || change.kind === 'undo') return null;
+  if (change.revision !== state.revision + 1 || change.kind === 'undo' || change.kind === 'redo') return null;
   let strokes = state.strokes;
   if (change.kind === 'clear' || change.kind === 'setMap') strokes = [];
   if (change.kind === 'remove') strokes = strokes.filter(x => x.stroke.id !== change.strokeId);

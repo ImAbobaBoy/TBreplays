@@ -40,7 +40,7 @@ public sealed record SketchTank(string Id, string CoordinateSpace, string Label,
     string Team, string Color, SketchTankPose Pose, SketchPoint? AimTarget = null);
 public sealed record StoredTank(SketchTank Tank, long Revision, string AuthorId);
 public sealed record SketchState(long Revision, string? MapId, long MapRevision,
-    IReadOnlyList<StoredStroke> Strokes, IReadOnlyList<StoredTank> Tanks, string? SlideId = null, int UndoCount = 0);
+    IReadOnlyList<StoredStroke> Strokes, IReadOnlyList<StoredTank> Tanks, string? SlideId = null, int UndoCount = 0, int RedoCount = 0);
 // ExpectedRevision is the entity revision for upsert/remove (stroke or tank), the board revision for clear/map.
 // OperationId makes retries idempotent; MapRevision prevents a late stroke on a different map.
 public sealed record SketchCommand(string OperationId, string Kind, long ExpectedRevision,
@@ -63,4 +63,5 @@ public sealed class SketchDocument
     public HashSet<string> DeletedStrokeIds { get; set; } = [];
     public List<SketchChange> RecentOperations { get; set; } = [];
     public List<SketchUndoEntry> UndoHistory { get; set; } = [];
+    public List<SketchUndoEntry> RedoHistory { get; set; } = [];
 }

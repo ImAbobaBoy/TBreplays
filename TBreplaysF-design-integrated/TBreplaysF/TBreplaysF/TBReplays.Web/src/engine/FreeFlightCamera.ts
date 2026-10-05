@@ -28,6 +28,7 @@ export class FreeFlightCamera {
     canvas.addEventListener('lostpointercapture', this.endLook);
     canvas.addEventListener('wheel', this.wheel, { passive: false, capture: true });
     canvas.addEventListener('blur', this.canvasBlur);
+    canvas.addEventListener('contextmenu', this.contextMenu);
     window.addEventListener('keydown', this.keyDown);
     window.addEventListener('keyup', this.keyUp);
     window.addEventListener('blur', this.reset);
@@ -62,13 +63,15 @@ export class FreeFlightCamera {
   private readonly keyUp = (event: KeyboardEvent) => { this.keys.delete(event.code); };
   private readonly canvasBlur = () => { if (this.isEditing()) this.reset(); else this.endLook(); };
   private readonly down = (event: PointerEvent) => {
-    if (!this.enabled || event.button !== 0) return;
+    if (!this.enabled) return;
     this.canvas.focus({ preventScroll: true });
+    if (event.button !== 2) return;
     this.look.setFromQuaternion(this.camera.quaternion, 'YXZ'); this.lookPending = true;
     this.pointer = event.pointerId; this.x = event.clientX; this.y = event.clientY;
     this.canvas.setPointerCapture(event.pointerId);
     event.preventDefault(); event.stopImmediatePropagation();
   };
+  private readonly contextMenu = (event: Event) => { if (this.enabled) event.preventDefault(); };
   private readonly move = (event: PointerEvent) => {
     if (!this.enabled || this.pointer !== event.pointerId) return;
     this.look.y -= (event.clientX - this.x) * .003;
@@ -126,6 +129,7 @@ export class FreeFlightCamera {
     this.canvas.removeEventListener('lostpointercapture', this.endLook);
     this.canvas.removeEventListener('wheel', this.wheel, true);
     this.canvas.removeEventListener('blur', this.canvasBlur);
+    this.canvas.removeEventListener('contextmenu', this.contextMenu);
     window.removeEventListener('keydown', this.keyDown); window.removeEventListener('keyup', this.keyUp);
     window.removeEventListener('blur', this.reset); document.removeEventListener('visibilitychange', this.reset);
   }

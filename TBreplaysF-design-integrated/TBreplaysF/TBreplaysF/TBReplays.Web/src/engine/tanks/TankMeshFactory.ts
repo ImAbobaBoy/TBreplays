@@ -114,8 +114,9 @@ export function createTankVisual(model: ManualTankModel): TankVisual {
     }
   }
   const glacis = new THREE.Mesh(new THREE.BoxGeometry(dimensions.bodyWidth * .82, dimensions.bodyHeight * .45, dimensions.bodyLength * .3), bodyMaterial);
+  glacis.name = 'tank_glacis';
   glacis.rotation.x = -.25;
-  glacis.position.set(0, dimensions.bodyHeight * .95, dimensions.bodyLength * .32); root.add(glacis);
+  glacis.position.set(0, dimensions.bodyHeight * (model.visualKey === 'td' ? .65 : .95), dimensions.bodyLength * .32); root.add(glacis);
   if (model.visualKey === 'heavy') {
     for (const side of [-1, 1]) {
       const armor = new THREE.Mesh(new THREE.BoxGeometry(.35, dimensions.bodyHeight * .55, dimensions.bodyLength * .8), bodyMaterial);
@@ -147,7 +148,8 @@ export function createTankVisual(model: ManualTankModel): TankVisual {
     turret.rotation.x = -.12;
     turretPivot.position.z = dimensions.bodyLength * .22;
     const rearDeck = new THREE.Mesh(new THREE.BoxGeometry(dimensions.bodyWidth * .65, .5, dimensions.bodyLength * .4), darkMaterial);
-    rearDeck.position.set(0, dimensions.bodyHeight + .2, -dimensions.bodyLength * .26); root.add(rearDeck);
+    rearDeck.name = 'tank_rear_deck';
+    rearDeck.position.set(0, dimensions.bodyHeight * .65, -dimensions.bodyLength * .26); root.add(rearDeck);
   }
   turretPivot.add(turret);
 
@@ -180,7 +182,10 @@ export function createTankVisual(model: ManualTankModel): TankVisual {
   directionMarker.rotation.x = Math.PI / 2;
   directionMarker.position.y = dimensions.bodyHeight + 0.25;
   directionMarker.position.z = dimensions.bodyLength / 2 + 0.7;
-  root.add(directionMarker);
+  if (model.visualKey === 'td') {
+    directionMarker.position.set(0, dimensions.turretHeight / 2, dimensions.turretLength / 2 + dimensions.gunLength + .8);
+    turretPivot.add(directionMarker);
+  } else root.add(directionMarker);
 
   const selectionRing = new THREE.Mesh(
     new THREE.RingGeometry(

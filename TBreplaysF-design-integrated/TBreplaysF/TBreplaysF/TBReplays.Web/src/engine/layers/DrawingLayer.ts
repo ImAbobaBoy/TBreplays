@@ -9,6 +9,8 @@ import type {
 } from '../../app/AppState';
 import type { DrawingStrokeModel } from '../../domain/DrawingModels';
 import { createTextSign } from '../TextSign';
+import { PlacementGesture } from '../PlacementGesture';
+import type { CameraMode } from '../FreeFlightCamera';
 
 export class DrawingLayer {
   private readonly root: THREE.Group;
@@ -35,6 +37,11 @@ export class DrawingLayer {
   private readonly erased = new Set<string>();
   private text = '';
   private textSize = 10;
+  private cameraMode: CameraMode = 'orbit';
+  private navigationEnabled = true;
+  public setNavigationEnabled(enabled: boolean): void { this.navigationEnabled = enabled; }
+  private readonly placement = new PlacementGesture();
+  public setCameraMode(mode: CameraMode): void { this.placement.cancel(); this.cameraMode = mode; }
   public eraseOther: ((raycaster: THREE.Raycaster, erased: Set<string>) => void) | null = null;
   public setText(text: string, size: number): void { this.text = text.replace(/\r/g, '').slice(0, 500); this.textSize = Math.max(2, Math.min(30, size)); }
   private onlineHandlers: { upsert: (stroke: DrawingStrokeModel) => void; remove: (id: string) => void } | null = null;
@@ -77,10 +84,12 @@ export class DrawingLayer {
     );
     window.addEventListener('pointercancel', this.handlePointerUp, true);
     window.addEventListener('blur', this.finishErasing);
+    window.addEventListener('blur', this.cancelPlacement);
     this.renderer.domElement.addEventListener('contextmenu', this.contextMenu);
   }
 
   public setEnabled(enabled: boolean): void {
+    this.placement.cancel();
     this.enabled = enabled;
 
     if (!enabled) {
@@ -90,6 +99,7 @@ export class DrawingLayer {
   }
 
   public setTool(tool: ViewerTool): void {
+    this.placement.cancel();
     if (tool !== 'erase') this.finishErasing();
     this.tool = tool;
 
@@ -231,12 +241,13 @@ export class DrawingLayer {
     );
     window.removeEventListener('pointercancel', this.handlePointerUp, true);
     window.removeEventListener('blur', this.finishErasing);
+    window.removeEventListener('blur', this.cancelPlacement);
     this.renderer.domElement.removeEventListener('contextmenu', this.contextMenu);
     this.eraseOther = null;
   }
 
   private readonly handlePointerDown = (event: PointerEvent): void => {
-    if (this.enabled && this.tool === 'erase' && (event.button === 2 || event.button === 0)) {
+    if (this.enabled && this.tool === 'erase' && (event.button === 2 && this.cameraMode === 'orbit' || event.button === 0)) {
       this.erasing = true; this.erased.clear(); this.controls.enabled = false;
       this.stopViewerEvent(event); this.eraseStroke(event); return;
     }
@@ -245,7 +256,16 @@ export class DrawingLayer {
     }
 
     if (this.tool === 'text' || this.tool === 'marker') {
+      this.placement.down(event);
+      return;
+    }
+    if (this.tool === 'draw' || this.tool === 'drawLine') {
       this.stopViewerEvent(event);
+      this.startStroke(event);
+    }
+  };
+
+  private placeMarker(event: PointerEvent): void {
       const point = this.pickTerrainPoint(event);
       if (point) {
         if (this.tool === 'text' && !this.text.trim()) return;
@@ -255,26 +275,15 @@ export class DrawingLayer {
         this.syncStrokes([...this.getStrokes(), marker]);
         this.onlineHandlers?.upsert(marker);
       }
-      return;
-    }
-    if (this.tool === 'draw' || this.tool === 'drawLine') {
-      this.stopViewerEvent(event);
-      this.startStroke(event);
-      return;
-    }
-
-    if (this.tool === 'erase') {
-      this.stopViewerEvent(event);
-      this.eraseStroke(event);
-    }
-  };
+  }
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
+    this.placement.move(event);
     if (this.enabled && this.tool === 'erase') {
       if (!(event.buttons & 3)) { this.finishErasing(); return; }
       const rect = this.renderer.domElement.getBoundingClientRect();
       if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return;
-      if (event.buttons & 2 || this.erasing) {
+      if (event.buttons & 2 && this.cameraMode === 'orbit' || this.erasing) {
         if (!this.erasing) { this.erasing = true; this.erased.clear(); this.controls.enabled = false; }
         this.stopViewerEvent(event); this.eraseStroke(event); return;
       }
@@ -294,6 +303,7 @@ export class DrawingLayer {
   };
 
   private readonly handlePointerUp = (event: PointerEvent): void => {
+    if (this.placement.up(event) && this.enabled && (this.tool === 'marker' || this.tool === 'text')) this.placeMarker(event);
     if (this.erasing) { this.stopViewerEvent(event); this.finishErasing(); return; }
     if (!this.isDrawing) {
       return;
@@ -303,12 +313,13 @@ export class DrawingLayer {
     this.finishStroke();
   };
   private readonly finishErasing = (): void => {
-    if (this.erasing) this.controls.enabled = true;
+    if (this.erasing) this.controls.enabled = this.navigationEnabled && this.cameraMode === 'orbit';
     this.erasing = false; this.erased.clear();
   };
   private readonly contextMenu = (event: Event): void => {
     if (this.enabled && this.tool === 'erase') event.preventDefault();
   };
+  private readonly cancelPlacement = () => { this.placement.cancel(); };
 
   private startStroke(event: PointerEvent): void {
     const point = this.pickTerrainPoint(event);
@@ -392,7 +403,7 @@ export class DrawingLayer {
     this.activeStroke = null;
     this.activePoints = [];
     this.isDrawing = false;
-    this.controls.enabled = true;
+    this.controls.enabled = this.navigationEnabled && this.cameraMode === 'orbit';
     if (completed) this.onlineHandlers?.upsert(completed);
   }
 
@@ -400,7 +411,7 @@ export class DrawingLayer {
     if (!this.activeStroke) {
       this.activePoints = [];
       this.isDrawing = false;
-      this.controls.enabled = true;
+      this.controls.enabled = this.navigationEnabled && this.cameraMode === 'orbit';
       return;
     }
 
@@ -410,7 +421,7 @@ export class DrawingLayer {
     this.activeStroke = null;
     this.activePoints = [];
     this.isDrawing = false;
-    this.controls.enabled = true;
+    this.controls.enabled = this.navigationEnabled && this.cameraMode === 'orbit';
   }
 
   private rebuildActiveStrokeGeometry(): void {

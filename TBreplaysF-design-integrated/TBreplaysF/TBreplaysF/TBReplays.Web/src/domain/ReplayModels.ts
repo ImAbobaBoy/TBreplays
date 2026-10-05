@@ -355,6 +355,9 @@ export type ReplaySessionItem = {
   parseResultUrl: string;
 };
 
+export type ReplayReloadFrame = {
+  time: number; durationSeconds: number | null; startedAt: number | null; readyAt: number | null;
+};
 export type ReplayVehicleState = {
   time: number; health: number | null; healthFraction: number | null;
   isAlive: boolean; isVisible: boolean; healthIsLastKnown: boolean;
@@ -366,6 +369,7 @@ export type ReplayTeamState = {
   hasUnobservedHealth: boolean; supremacyPoints: number | null;
 };
 export type ReplayPresentation = {
+  vehicleStateProtocolVersion?: number;
   schemaVersion: number; recorderTeamId: number | null; recorderEntityId: number | null;
   mapName: string | null; mapId: number | null;
   outcome: { winnerTeamId: number | null; reason: string; reasonName: string;
@@ -379,7 +383,7 @@ export type ReplayPresentation = {
     vehicles: { entityId: number; teamId: number; movement: ParsedReplayMovementFrame[];
       turret: ParsedReplayTurretFrame[]; states: ReplayVehicleState[];
       visibility: ParsedReplayVisibilityInterval[]; consumableUses: ReplayConsumableActivationEvent[];
-      shots: ParsedReplayShotEvent[] }[];
+      shots: ParsedReplayShotEvent[]; reload?: ReplayReloadFrame[] }[];
     scoreboard: { time: number; teams: ReplayTeamState[] }[];
     projectiles: { projectileId: number; points: ParsedReplayProjectilePoint[] }[];
   };

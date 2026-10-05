@@ -1,4 +1,5 @@
 import { createId } from '../../utils/createId';
+import type { ScenePresenceCommand, ScenePresenceFrame } from '../../domain/ScenePresenceModels';
 import { HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import { API_BASE, onlineRequest } from '../../api/OnlineHttp';
 import { applyOptimisticSketchCommand, applySketchChange } from './OnlineModels';
@@ -24,9 +25,60 @@ export class OnlineClient {
     reject: (error: Error) => void;
   }>();
   private timer: ReturnType<typeof setInterval> | undefined;
+  private presence = new Map<string, ScenePresenceFrame>();
+  private presenceListeners = new Set<() => void>();
+  private presenceSending = false;
+  private pendingPresence: ScenePresenceCommand | null = null;
+  private presenceTimer: ReturnType<typeof setTimeout> | undefined;
+  private presenceVersion = 0;
+  private presenceChanges = new Map<string, number>();
+  public getScenePresence = () => [...this.presence.values()];
+  public subscribeScenePresence = (listener: () => void) => { this.presenceListeners.add(listener); return () => { this.presenceListeners.delete(listener); }; };
+  private notifyPresence() { this.presenceListeners.forEach(listener => listener()); }
+  public async refreshScenePresence(): Promise<void> {
+    const slide = this.state.workspace?.activeSlideId;
+    const generation = this.slideGeneration;
+    const version = this.presenceVersion;
+    const frames = await this.hub.invoke<ScenePresenceFrame[]>('GetScenePresence');
+    if (slide !== this.state.workspace?.activeSlideId || generation !== this.slideGeneration || this.disposed) return;
+    const snapshot = new Map((frames ?? []).filter(frame => frame.slideId === slide).map(frame => [frame.connectionId, frame]));
+    for (const [id, changed] of this.presenceChanges) {
+      if (changed <= version) continue;
+      const current = this.presence.get(id);
+      if (current) snapshot.set(id, current);
+      else snapshot.delete(id);
+    }
+    this.presence = snapshot;
+    this.notifyPresence();
+  }
+  public sendScenePresence(command: ScenePresenceCommand): void {
+    if (this.disposed || this.state.status !== 'connected' || command.slideId !== this.state.workspace?.activeSlideId) return;
+    this.pendingPresence = command;
+    this.flushPresence();
+  }
+  private flushPresence(): void {
+    if (this.presenceSending || this.presenceTimer || !this.pendingPresence) return;
+    const command = this.pendingPresence;
+    this.pendingPresence = null;
+    if (this.disposed || this.state.status !== 'connected' || command.slideId !== this.state.workspace?.activeSlideId) return;
+    this.presenceSending = true;
+    void this.hub.invoke('UpdateScenePresence', command).catch(() => {}).finally(() => {
+      this.presenceSending = false;
+      if (this.disposed) return;
+      this.presenceTimer = setTimeout(() => { this.presenceTimer = undefined; this.flushPresence(); }, 50);
+    });
+  }
   readonly getSnapshot = () => this.state;
   readonly subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   constructor(userId = '') {
+    this.hub.on('ScenePresenceChanged', (frame: ScenePresenceFrame) => {
+      if (frame.slideId !== this.state.workspace?.activeSlideId || frame.connectionId === this.state.connectionId) return;
+      const old = this.presence.get(frame.connectionId);
+      if (old && frame.sequence <= old.sequence) return;
+      this.presenceChanges.set(frame.connectionId, ++this.presenceVersion);
+      this.presence.set(frame.connectionId, frame); this.notifyPresence();
+    });
+    this.hub.on('ScenePresenceRemoved', (id: string) => { this.presenceChanges.set(id, ++this.presenceVersion); this.presence.delete(id); this.notifyPresence(); });
     this.preferenceKey = userId ? `tbreplays-slide:${userId}` : 'tbreplays-slide';
     this.preferredSlide = localStorage.getItem(this.preferenceKey);
     this.hub.on('WorkspaceSnapshot', (state: WorkspaceState) => this.acceptWorkspace(state));
@@ -50,6 +102,7 @@ export class OnlineClient {
       }
     }
     this.publish({ workspace: { ...workspace, activeSlideId: workspace.activeSlideId ?? previous?.activeSlideId ?? null } });
+    if (workspace.activeSlideId && workspace.activeSlideId !== previous?.activeSlideId) { this.presence.clear(); this.notifyPresence(); }
   }
   private optimisticBoard(): SketchState | null {
     if (!this.confirmedBoard) return null;
@@ -152,6 +205,7 @@ export class OnlineClient {
     await this.refresh();
     await this.refreshReplay();
     this.publish({ users: await this.hub.invoke<OnlineUser[]>('GetUsers') });
+    await this.refreshScenePresence();
   }
   async refreshReplay() {
     const sent = Date.now();
@@ -237,6 +291,7 @@ export class OnlineClient {
       }
       await this.refreshTask?.catch(() => {});
       await this.refresh(); await this.refreshReplay();
+      await this.refreshScenePresence();
     });
     return this.selecting;
   }
@@ -254,6 +309,12 @@ export class OnlineClient {
     await this.apply({ kind: 'undo', expectedRevision: board.revision });
     await this.refresh();
   }
+  async redo() {
+    const board = this.state.board;
+    if (!board || this.state.pending) return;
+    await this.apply({ kind: 'redo', expectedRevision: board.revision });
+    await this.refresh();
+  }
   dispose() {
     this.disposed = true;
     if (this.timer) clearInterval(this.timer);
@@ -262,6 +323,9 @@ export class OnlineClient {
       pending.reject(new Error('Соединение закрыто.'));
     }
     this.pendingSketch.clear();
+    this.presence.clear(); this.presenceListeners.clear();
+    this.presenceChanges.clear(); this.pendingPresence = null;
+    if (this.presenceTimer) clearTimeout(this.presenceTimer);
     this.listeners.clear();
     void this.hub.stop();
   }
@@ -271,6 +335,8 @@ function sketchError(code: string): string {
   const errors: Record<string, string> = {
     undoConflict: 'Этот объект после вас изменил другой участник. Его правку отменить нельзя.',
     nothingToUndo: 'На этом слайде больше нет ваших действий для отмены.',
+    redoConflict: 'Этот объект после отмены изменил другой участник. Его правку заменить нельзя.',
+    nothingToRedo: 'На этом слайде больше нет ваших действий для возврата.',
     undoLimit: 'Отмена превысит допустимое количество объектов на слайде.',
     slideConflict: 'Выбран другой слайд. Изменение прежнего слайда отклонено.',
   };

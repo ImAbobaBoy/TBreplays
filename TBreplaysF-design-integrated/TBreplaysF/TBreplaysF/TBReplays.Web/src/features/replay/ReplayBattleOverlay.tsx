@@ -1,5 +1,6 @@
 import type { ReplayTeamHealthState, ReplayTeamHealthSideState } from '../../domain/ReplayModels';
 import { getReplayTeamKind } from '../../engine/replay/ReplayTrackBuilder';
+import { selectReplayReload } from '../../engine/replay/ReplayReload';
 import './replayBattleOverlay.css';
 
 const value = (n: number | null | undefined) => n == null ? '—' : n.toLocaleString('ru-RU');
@@ -18,7 +19,7 @@ function Team({ team, kind }: { team: ReplayTeamHealthSideState | null; kind: st
       <span style={{ width: `${(fraction ?? 0) * 100}%` }} />
     </div>
     <b className="replay-battle-points">Превосходство: {value(team?.supremacyPoints)}</b>
-    <small>В строю: {value(team?.aliveCount)} · Уничтожено: {value(team?.confirmedKills)}</small>
+    <small className="replay-battle-frags">Фраги <b>{value(team?.confirmedKills)}</b></small>
   </div>;
 }
 
@@ -35,6 +36,36 @@ export function ReplayBattleOverlay({ data }: { data: ReplayTeamHealthState | nu
     <div className="replay-battle-scoreboard">
       <Team team={data.ally} kind="ally" /><Team team={data.enemy} kind="enemy" />
     </div>
+    {(['ally', 'enemy'] as const).map(kind => {
+      const teamId = kind === 'ally' ? data.ally?.teamId ?? recorderTeamId : data.enemy?.teamId;
+      return <div key={kind} className={`replay-battle-roster ${kind}`} aria-label={kind === 'ally' ? 'Команда автора реплея' : 'Команда противников'}>
+        {presentation.vehicles.filter(vehicle => vehicle.teamId === teamId || kind === 'enemy' && teamId == null && recorderTeamId != null && vehicle.teamId !== recorderTeamId).map(vehicle => {
+          const state = data.states.get(vehicle.entityId);
+          const health = state?.health ?? null;
+          const maximum = vehicle.initialHp ?? vehicle.effectiveHp ?? null;
+          const fraction = maximum && health != null ? Math.max(0, Math.min(1, health / maximum)) : 0;
+          const reloadTrack = kind === 'ally' ? presentation.playback?.vehicles.find(track => track.entityId === vehicle.entityId) : null;
+          const reload = selectReplayReload(reloadTrack?.reload ?? [], data.time);
+          const reloadFraction = state?.isAlive === false ? 0 : reload.fraction;
+          const reloadLabel = state?.isAlive === false ? 'Танк уничтожен'
+            : reload.fraction == null ? (presentation.vehicleStateProtocolVersion ?? 0) < 1
+              ? 'Повторно импортируйте реплей для получения данных перезарядки' : 'Данных о перезарядке нет'
+            : reload.remainingSeconds === 0 ? 'Орудие заряжено' : `Перезарядка: ${reload.remainingSeconds!.toFixed(1)} с`;
+          return <div className={`replay-battle-player${state?.isAlive === false ? ' destroyed' : ''}`} key={vehicle.entityId}
+            title={`${vehicle.nickname} · ${vehicle.vehicleName ?? vehicle.vehicleKey ?? 'Танк неизвестен'} · ${value(health)} ХП${state?.healthIsLastKnown ? ' (последнее известное)' : ''}`}>
+            <span className="replay-player-fill" style={{ width: `${fraction * 100}%` }} />
+            <div className="replay-player-heading"><strong>{vehicle.nickname}</strong><b>{state?.healthIsLastKnown ? '≈ ' : ''}{value(health)}</b></div>
+            <small>{vehicle.vehicleName ?? vehicle.vehicleKey ?? 'Танк неизвестен'}</small>
+            <span className="replay-player-meter" role="meter" aria-label={`${vehicle.nickname}: ХП`} aria-valuemin={0} aria-valuemax={maximum ?? undefined} aria-valuenow={health ?? undefined} />
+            {kind === 'ally' && <span className={`replay-player-reload${reloadFraction == null ? ' unknown' : ''}`}
+              role="meter" aria-label={`${vehicle.nickname}: перезарядка`} aria-valuemin={0} aria-valuemax={100}
+              aria-valuenow={reloadFraction == null ? undefined : Math.round(reloadFraction * 100)} aria-valuetext={reloadLabel} title={reloadLabel}>
+              <span style={{ width: `${(reloadFraction ?? 0) * 100}%` }} />
+            </span>}
+          </div>;
+        })}
+      </div>;
+    })}
     {resultVisible && <div className="replay-battle-result">{result} · {outcome.reasonName}
       {!outcome.sourcesAgree && ' · Источники результата расходятся'}
     </div>}

@@ -36,7 +36,9 @@ camera.position.set(0,0,0); flight.update(.1); assert.equal(camera.position.leng
 canvas.focus(); let drawingClicks=0; canvas.addEventListener('pointerdown',()=>drawingClicks++);
 const before=camera.quaternion.clone(); emit(canvas,'pointermove',{pointerId:1,clientX:100,clientY:100}); assert.ok(camera.quaternion.equals(before));
 emit(canvas,'pointerdown',{button:0,pointerId:1,clientX:0,clientY:0});
-assert.equal(canvas.hasPointerCapture(1),true); assert.equal(drawingClicks,0, 'Flight LMB never places a marker');
+assert.equal(canvas.hasPointerCapture(1),false); assert.equal(drawingClicks,1, 'Flight LMB reaches the active tool');
+emit(canvas,'pointerdown',{button:2,pointerId:1,clientX:0,clientY:0});
+assert.equal(canvas.hasPointerCapture(1),true); assert.equal(drawingClicks,1, 'Flight RMB is reserved for camera look');
 emit(canvas,'pointermove',{pointerId:1,clientX:100,clientY:100}); flight.update(.1); assert.ok(!camera.quaternion.equals(before));
 emit(canvas,'pointerup',{pointerId:1}); assert.equal(canvas.hasPointerCapture(1),false);
 camera.position.set(0,0,0); emit(canvas,'wheel',{deltaY:-100,deltaMode:0}); flight.update(.1); assert.ok(camera.position.dot(camera.getWorldDirection(new THREE.Vector3()))>0);
@@ -44,7 +46,7 @@ document.hidden=true; emit(window,'keydown',{code:'KeyW',key:'w'}); const hidden
 
 // Release of a look drag must not forget a physically held movement key.
 canvas.focus(); emit(window,'keydown',{code:'KeyW',key:'w'});
-emit(canvas,'pointerdown',{button:0,pointerId:7,clientX:0,clientY:0});
+emit(canvas,'pointerdown',{button:2,pointerId:7,clientX:0,clientY:0});
 emit(canvas,'pointerup',{pointerId:7}); emit(canvas,'lostpointercapture');
 const afterLook=camera.position.clone(); flight.update(.1); assert.ok(camera.position.distanceTo(afterLook)>0);
 // Toolbar focus does not require re-enabling flight mode.
@@ -54,4 +56,4 @@ emit(window,'blur');
 const travel = fps => { camera.position.set(0,0,0); camera.quaternion.identity(); flight.setEnabled(true); emit(window,'keydown',{code:'KeyW',key:'w'}); for(let i=0;i<fps;i++)flight.update(1/fps); return camera.position.z; };
 assert.ok(Math.abs(travel(30)-travel(144)) < .00001, 'Smooth movement integrates equally at 30 and 144 FPS');
 flight.dispose(); const final=camera.position.clone(); emit(canvas,'wheel',{deltaY:-100,deltaMode:0}); emit(window,'keydown',{code:'KeyW',key:'w'}); flight.update(.1); assert.deepEqual(camera.position,final);
-console.log('PASS: free camera WASD, diagonal speed, 1–5 presets, LMB capture/rotation, wheel dolly, input focus, blur/visibility and cleanup');
+console.log('PASS: flight RMB look, LMB tools, smooth WASD, speeds, wheel, focus, blur and cleanup');

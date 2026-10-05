@@ -1,6 +1,7 @@
 import { API_BASE } from '../api/OnlineHttp';
 import type { DrawingStrokeModel } from '../domain/DrawingModels';
 import * as THREE from 'three';
+import { orbitPanSpeed, orbitWheelDistance } from './OrbitNavigation';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 import type { AppMode } from '../app/AppMode';
@@ -38,6 +39,8 @@ import { ReplayPlaybackController } from './replay/ReplayPlaybackController';
 import { buildReplayTimeline } from './replay/ReplayTrackBuilder';
 import { MapSceneSessionCache } from './MapSceneSessionCache';
 import { FreeFlightCamera, type CameraMode } from './FreeFlightCamera';
+import type { SceneCamera, ScenePoint, ScenePresenceFrame } from '../domain/ScenePresenceModels';
+import { EditorCursorLayer } from './layers/EditorCursorLayer';
 
 type PreparedMap = {
   terrain: TerrainLayer; surface: SurfaceTextureLayer; objects: ObjectMeshLayer;
@@ -57,6 +60,64 @@ export class ViewerEngine {
   private cameraMode: CameraMode = 'orbit';
   private drawingAllowed = true;
   private lastFrame = 0;
+  private readonly editorCursors = new EditorCursorLayer();
+  private editorFrames: ScenePresenceFrame[] = [];
+  private followingCamera = false;
+  private orbitReferenceDistance = 750;
+  private readonly orbitWheel = (event: WheelEvent) => {
+    if (this.cameraMode !== 'orbit' || this.followingCamera || !this.controls.enabled) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    const offset = this.camera.position.clone().sub(this.controls.target);
+    const distance = offset.length();
+    if (!distance) return;
+    offset.multiplyScalar(orbitWheelDistance(distance, event.deltaY, event.deltaMode, this.orbitReferenceDistance * .035) / distance);
+    this.camera.position.copy(this.controls.target).add(offset);
+    this.controls.update();
+  };
+  private remoteCamera: SceneCamera | null = null;
+  private presenceHandler: ((cursor: ScenePoint | null, camera: SceneCamera) => void) | null = null;
+  private cursorScreen: { x: number; y: number } | null = null;
+  private presenceSentAt = 0;
+  private presenceJson = '';
+  public setScenePresenceHandler(handler: typeof this.presenceHandler): void { this.presenceHandler = handler; this.presenceJson = ''; }
+  public setEditorCursors(frames: ScenePresenceFrame[]): void { this.editorFrames = frames; this.editorCursors.sync(frames); }
+  public setFollowingCamera(enabled: boolean): void {
+    if (enabled === this.followingCamera) return;
+    this.followingCamera = enabled; this.remoteCamera = null;
+    this.drawingLayer.setNavigationEnabled(!enabled); this.tankLayer.setNavigationEnabled(!enabled);
+    this.flightCamera.setEnabled(!enabled && this.cameraMode === 'flight');
+    this.controls.enabled = !enabled && this.cameraMode === 'orbit';
+  }
+  public followCamera(camera: SceneCamera): void { if (this.followingCamera) this.remoteCamera = camera; }
+  public getCameraPose(): SceneCamera {
+    const target = this.cameraMode === 'flight' ? this.camera.position.clone().addScaledVector(this.camera.getWorldDirection(new THREE.Vector3()), 100) : this.controls.target;
+    return { position: { x: this.camera.position.x, y: this.camera.position.y, z: this.camera.position.z },
+      quaternion: { x: this.camera.quaternion.x, y: this.camera.quaternion.y, z: this.camera.quaternion.z, w: this.camera.quaternion.w },
+      target: { x: target.x, y: target.y, z: target.z }, fov: this.camera.fov };
+  }
+  private readonly trackCursor = (event: PointerEvent) => {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.cursorScreen = event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom
+      && (event.target === this.renderer.domElement || this.renderer.domElement.hasPointerCapture(event.pointerId))
+      ? { x: event.clientX, y: event.clientY } : null;
+  };
+  private readonly hideCursor = () => { this.cursorScreen = null; this.emitScenePresence(true); };
+  private emitScenePresence(force = false): void {
+    if (!this.presenceHandler || !this.currentMapId) return;
+    const now = Date.now();
+    if (!force && now - this.presenceSentAt < 50) return;
+    let cursor: ScenePoint | null = null;
+    if (this.cursorScreen) {
+      const rect = this.renderer.domElement.getBoundingClientRect();
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2((this.cursorScreen.x - rect.left) / rect.width * 2 - 1, -(this.cursorScreen.y - rect.top) / rect.height * 2 + 1), this.camera);
+      const hit = ray.intersectObjects(this.terrainRoot.children, true)[0];
+      if (hit) cursor = { x: hit.point.x, y: hit.point.y, z: hit.point.z };
+    }
+    const camera = this.getCameraPose(); const json = JSON.stringify({ cursor, camera });
+    if (!force && json === this.presenceJson && now - this.presenceSentAt < 2000) return;
+    this.presenceJson = json; this.presenceSentAt = now; this.presenceHandler(cursor, camera);
+  }
 
   private readonly mapRoot = new THREE.Group();
   private readonly terrainRoot = new THREE.Group();
@@ -73,7 +134,6 @@ export class ViewerEngine {
   private activeMap: PreparedMap | null = null;
   private readonly mapCache = new MapSceneSessionCache<PreparedMap>(id => this.prepareMap(id));
   private preloadGeneration = 0;
-  private wantedMapId: string | null = null;
   private readonly replayPresentations = new Map<string, ReturnType<TBReplaysApi['getReplayPresentation']>>();
   private readonly drawingLayer: DrawingLayer;
   private readonly tankLayer: TankLayer;
@@ -145,6 +205,11 @@ export class ViewerEngine {
     this.controls.update();
 
     this.flightCamera = new FreeFlightCamera(this.camera, this.renderer.domElement);
+    this.renderer.domElement.addEventListener('wheel', this.orbitWheel, { capture: true, passive: false });
+    window.addEventListener('pointermove', this.trackCursor, true);
+    window.addEventListener('blur', this.hideCursor);
+    this.renderer.domElement.addEventListener('pointerleave', this.hideCursor);
+    this.scene.add(this.editorCursors.root);
 
 
     this.tankLayer = new TankLayer(
@@ -194,8 +259,9 @@ export class ViewerEngine {
   public setCameraMode(mode: CameraMode): void {
     if (mode === this.cameraMode) return;
     this.cameraMode = mode;
-    this.flightCamera.setEnabled(mode === 'flight');
-    this.controls.enabled = mode === 'orbit';
+    this.drawingLayer.setCameraMode(mode); this.tankLayer.setCameraMode(mode);
+    this.flightCamera.setEnabled(!this.followingCamera && mode === 'flight');
+    this.controls.enabled = !this.followingCamera && mode === 'orbit';
     if (mode === 'orbit') {
       const distance = Math.max(10, this.camera.position.distanceTo(this.controls.target));
       this.controls.target.copy(this.camera.position).addScaledVector(this.camera.getWorldDirection(new THREE.Vector3()), distance);
@@ -206,9 +272,9 @@ export class ViewerEngine {
   public setCameraSpeed(speed: number): void { this.flightCamera.setSpeed(speed); }
   public setCameraSpeedHandler(handler: ((speed: number) => void) | null): void { this.flightCamera.onSpeedChanged = handler; }
   private updateDrawingAccess(): void {
-    const allowed = this.drawingAllowed && this.mode === 'workspace' && this.cameraMode === 'orbit';
+    const allowed = this.drawingAllowed && this.mode === 'workspace';
     this.drawingLayer.setEnabled(allowed); this.tankLayer.setEditable(allowed);
-    if (this.cameraMode === 'flight') this.controls.enabled = false;
+    if (this.cameraMode === 'flight' || this.followingCamera) this.controls.enabled = false;
   }
 
   public getCurrentCalibration(): MapCalibration | null {
@@ -303,7 +369,9 @@ export class ViewerEngine {
     const safeMapId = (this.currentMapId ?? 'map').trim() || 'map';
     const fileName = `${safeMapId}_tactic.png`;
 
-    await this.tacticalPngExportService.export({
+    const cursorsVisible = this.editorCursors.root.visible;
+    this.editorCursors.root.visible = false;
+    try { await this.tacticalPngExportService.export({
       scene: this.scene,
       renderer: this.renderer,
       mapRoot: this.mapRoot,
@@ -317,7 +385,7 @@ export class ViewerEngine {
       fileName,
       width: 2048,
       height: 2048,
-    });
+    }); } finally { this.editorCursors.root.visible = cursorsVisible; }
 
     return fileName;
   }
@@ -466,7 +534,6 @@ export class ViewerEngine {
 
     if (this.disposed) throw new Error('Просмотрщик уже закрыт');
     this.clearMap();
-    this.wantedMapId = safeMapId;
     const generation = this.mapLoadGeneration;
     const checkCurrent = () => { if (this.disposed || generation !== this.mapLoadGeneration) throw new Error('Загрузка карты отменена'); };
 
@@ -483,20 +550,19 @@ export class ViewerEngine {
     this.applyCalibration(calibration);
 
     this.focusCameraOnObject(this.terrainRoot);
-    this.controls.enabled = this.cameraMode === 'orbit';
+    this.controls.enabled = !this.followingCamera && this.cameraMode === 'orbit';
     this.replayLayer.setCalibration(calibration);
 
-    this.mapCache.trim(safeMapId);
   }
 
   public clearMap(): void {
+    this.cursorScreen = null; this.remoteCamera = null; this.setEditorCursors([]);
     this.mapLoadGeneration++;
     this.preloadGeneration++;
-    this.controls.enabled = this.cameraMode === 'orbit';
+    this.controls.enabled = !this.followingCamera && this.cameraMode === 'orbit';
     this.terrainRoot.clear();
     this.objectRoot.clear();
     this.activeMap = null;
-    this.wantedMapId = null;
     this.currentMapId = null;
     this.currentManifest = null;
     this.currentCalibration = null;
@@ -548,6 +614,7 @@ export class ViewerEngine {
     }
 
     this.disposed = true;
+    this.renderer.domElement.removeEventListener('wheel', this.orbitWheel, true);
     this.renderer.domElement.removeEventListener('pointerdown', this.beginReplaySelection);
     this.renderer.domElement.removeEventListener('click', this.selectReplayTank);
     this.mapLoadGeneration++;
@@ -555,6 +622,10 @@ export class ViewerEngine {
 
     this.resizeObserver.disconnect();
     this.renderer.setAnimationLoop(null);
+    window.removeEventListener('pointermove', this.trackCursor, true);
+    window.removeEventListener('blur', this.hideCursor);
+    this.renderer.domElement.removeEventListener('pointerleave', this.hideCursor);
+    this.editorCursors.dispose(); this.presenceHandler = null;
     this.flightCamera.dispose();
 
     this.preloadGeneration++;
@@ -687,7 +758,6 @@ export class ViewerEngine {
         if (this.disposed || generation !== this.preloadGeneration) return;
         try {
           await this.mapCache.get(id, false);
-          this.mapCache.trim(this.wantedMapId ?? this.currentMapId);
           if (!this.mapCache.has(id)) return; // Visited maps already use the available budget.
         }
         catch (error) { if (!this.disposed) console.warn('Фоновая загрузка карты:', id, error); }
@@ -759,6 +829,7 @@ export class ViewerEngine {
 
     const maxSize = Math.max(size.x, size.y, size.z);
     const distance = Math.max(250, maxSize * 1.15);
+    this.orbitReferenceDistance = distance * 1.25;
 
     this.controls.target.copy(center);
 
@@ -877,10 +948,27 @@ export class ViewerEngine {
       this.notifyReplayPlaybackChanged(playback, false, timestamp);
     }
 
-    if (this.cameraMode === 'flight') this.flightCamera.update(this.lastFrame ? (timestamp - this.lastFrame) / 1000 : 0);
-    else this.controls.update();
+    if (this.followingCamera) {
+      this.controls.enabled = false;
+      if (this.remoteCamera) {
+        const pose = this.remoteCamera;
+        const dt = this.lastFrame ? Math.min(.1, (timestamp - this.lastFrame) / 1000) : 1;
+        const alpha = 1 - Math.exp(-18 * dt);
+        this.camera.position.lerp(new THREE.Vector3(pose.position.x, pose.position.y, pose.position.z), alpha);
+        this.camera.quaternion.slerp(new THREE.Quaternion(pose.quaternion.x, pose.quaternion.y, pose.quaternion.z, pose.quaternion.w).normalize(), alpha);
+        this.controls.target.set(pose.target.x, pose.target.y, pose.target.z);
+        this.camera.fov = pose.fov;
+        this.camera.far = Math.max(5000, this.camera.position.distanceTo(this.controls.target) * 5);
+        this.camera.updateProjectionMatrix();
+      }
+    }
+    else if (this.cameraMode === 'flight') this.flightCamera.update(this.lastFrame ? (timestamp - this.lastFrame) / 1000 : 0);
+    else { this.controls.panSpeed = orbitPanSpeed(this.camera.position.distanceTo(this.controls.target), this.orbitReferenceDistance); this.controls.update(); }
     this.lastFrame = timestamp;
     this.replayLayer.updateView(this.camera, this.renderer.domElement.clientHeight);
+    this.editorCursors.sync(this.editorFrames);
+    this.editorCursors.updateView(this.camera, this.renderer.domElement.clientHeight);
+    this.emitScenePresence();
     this.renderer.render(this.scene, this.camera);
   }
 

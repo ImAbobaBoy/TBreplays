@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 import type { ViewerTool } from '../../app/AppState';
+import { PlacementGesture } from '../PlacementGesture';
+import type { CameraMode } from '../FreeFlightCamera';
 import type {
   ManualTankModel,
   ManualTankPlacementDefaults,
@@ -57,6 +59,11 @@ export class TankLayer {
   private tool: ViewerTool = 'select';
   private enabled = true;
   private editable = true;
+  private cameraMode: CameraMode = 'orbit';
+  private navigationEnabled = true;
+  public setNavigationEnabled(enabled: boolean): void { this.navigationEnabled = enabled; }
+  private readonly placement = new PlacementGesture();
+  public setCameraMode(mode: CameraMode): void { this.placement.cancel(); this.cameraMode = mode; }
   private onlineHandlers: TankOnlineHandlers | null = null;
   public setOnlineHandlers(handlers: TankOnlineHandlers | null): void { this.onlineHandlers = handlers; }
   public setEditable(editable: boolean): void {
@@ -107,6 +114,8 @@ export class TankLayer {
       this.handlePointerUp,
       true,
     );
+    window.addEventListener('pointercancel', this.handlePointerUp, true);
+    window.addEventListener('blur', this.cancelPlacement);
   }
 
   public setHandlers(handlers: TankLayerHandlers): void {
@@ -121,6 +130,7 @@ export class TankLayer {
 
 
   public setEnabled(enabled: boolean): void {
+    this.placement.cancel();
     this.enabled = enabled;
 
     if (!enabled) {
@@ -129,6 +139,7 @@ export class TankLayer {
   }
 
   public setTool(tool: ViewerTool): void {
+    this.placement.cancel();
     this.tool = tool;
 
     if (tool !== 'select') {
@@ -233,6 +244,8 @@ export class TankLayer {
       this.handlePointerUp,
       true,
     );
+    window.removeEventListener('pointercancel', this.handlePointerUp, true);
+    window.removeEventListener('blur', this.cancelPlacement);
   }
 
   public getMuzzleWorldPosition(tankId: string): THREE.Vector3 | null {
@@ -270,15 +283,8 @@ export class TankLayer {
       return;
     }
     if (!this.editable && this.tool !== 'select') return;
-    if (this.tool === 'tankPlacement') {
-      this.stopViewerEvent(event);
-      this.placeTank(event);
-      return;
-    }
-
-    if (this.tool === 'tankAim') {
-      this.stopViewerEvent(event);
-      this.startAimTargetEdit(event);
+    if (this.tool === 'tankPlacement' || this.tool === 'tankAim') {
+      this.placement.down(event);
       return;
     }
 
@@ -321,6 +327,7 @@ export class TankLayer {
   };
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
+    this.placement.move(event);
     if (!this.enabled) {
       return;
     }
@@ -340,13 +347,20 @@ export class TankLayer {
   };
 
   private readonly handlePointerUp = (event: PointerEvent): void => {
+    if (this.placement.up(event) && this.enabled && this.editable) {
+      if (this.tool === 'tankPlacement') this.placeTank(event);
+      else if (this.tool === 'tankAim') this.startAimTargetEdit(event);
+      this.finishDrag(true);
+      return;
+    }
     if (!this.draggedTankId && !this.draggedAimTargetTankId) {
       return;
     }
 
     this.stopViewerEvent(event);
-    this.finishDrag(true);
+    this.finishDrag(event.type !== 'pointercancel');
   };
+  private readonly cancelPlacement = () => { this.placement.cancel(); this.finishDrag(); };
 
   private placeTank(event: PointerEvent): void {
     const point = this.pickTerrainPoint(event);
@@ -492,7 +506,7 @@ export class TankLayer {
     const tank = id ? this.tanks.get(id)?.model : undefined;
     this.draggedTankId = null;
     this.draggedAimTargetTankId = null;
-    this.controls.enabled = true;
+    this.controls.enabled = this.navigationEnabled && this.cameraMode === 'orbit';
     if (commit && tank) this.onlineHandlers?.commit(tank);
   }
 

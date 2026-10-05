@@ -22,6 +22,7 @@ public static class OnlineHosting
         services.AddSingleton<OnlineConnections>();
         services.AddSingleton<SketchService>();
         services.AddSingleton<WorkspaceService>();
+        services.AddSingleton<ScenePresenceService>();
         services.AddSingleton<IReplaySyncCatalog, ReplaySyncCatalog>();
         services.AddSingleton<ReplaySyncService>();
         services.AddHostedService(sp => sp.GetRequiredService<ReplaySyncService>());

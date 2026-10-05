@@ -163,6 +163,8 @@ public sealed class ReplayTurretFrame
 
 public sealed class ReplayShotEvent
 {
+    public int PacketIndex { get; init; }
+    public int PacketOffset { get; init; }
     public float Time { get; init; }
     public uint ShooterEntityId { get; init; }
     public uint ProjectileId { get; init; }
@@ -265,6 +267,8 @@ public sealed class ReplayConsumableActivationEvent
 
 public sealed class ReplayModuleStateEvent
 {
+    public int PacketIndex { get; init; }
+    public int PacketOffset { get; init; }
     public float Time { get; init; }
     public uint EntityId { get; init; }
     public int ModuleId { get; init; }
@@ -279,6 +283,8 @@ public sealed class ReplayModuleStateEvent
 
 public sealed class ReplayModuleHitSummaryEvent
 {
+    public int PacketIndex { get; init; }
+    public int PacketOffset { get; init; }
     public float Time { get; init; }
     public uint EntityId { get; init; }
     public int ModuleId { get; init; }
@@ -325,6 +331,8 @@ public sealed class ReplayDeathEvent
 
 public sealed class ReplayParseResult
 {
+    public int VehicleStateProtocolVersion { get; init; }
+    public IReadOnlyList<ReplayReloadEvent> ReloadEvents { get; init; } = [];
     public int ShotProtocolVersion { get; init; }
     public uint? RecorderEntityId { get; init; }
     public int? RecorderTeamId { get; init; }

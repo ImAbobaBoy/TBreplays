@@ -32,6 +32,13 @@ for (const visualKey of ['light', 'medium', 'heavy', 'td']) {
   signatures.add(JSON.stringify([visual.root.children.length, turret.geometry.type, turret.geometry.parameters, turret.scale.toArray()]));
   visual.root.updateMatrixWorld(true);
   assert.ok(visual.muzzleSocket.getWorldPosition(new THREE.Vector3()).z > 0);
+  if (visualKey === 'td') {
+    assert.equal(visual.root.children.filter(child => child.name === 'manual_tank_direction_marker').length, 0, 'TD has no second fixed forward marker');
+    const marker = visual.turretPivot.getObjectByName('manual_tank_direction_marker');
+    visual.turretPivot.rotation.y = Math.PI / 2; visual.root.updateMatrixWorld(true);
+    assert.ok(marker.getWorldPosition(new THREE.Vector3()).x > 0, 'TD direction marker follows the rotating gun');
+    assert.ok(visual.root.getObjectByName('tank_rear_deck').position.y < 2.1, 'Rear deck is part of the hull, below the turret');
+  }
   disposeTankVisual(visual);
 }
 assert.equal(signatures.size, 4, 'All four classes have distinct silhouettes');

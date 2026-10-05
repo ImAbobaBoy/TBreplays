@@ -116,7 +116,7 @@ public static class ReplayStatisticsBuilder
             var id = vehicle.EntityId;
             var healthFrames = health[id].OrderBy(x => x.Time).ThenBy(x => x.PacketIndex).ToArray();
             var extraFrames = extras[id].OrderBy(x => x.Time).ThenBy(x => x.PacketIndex).ToArray();
-            var moduleFrames = modules[id].OrderBy(x => x.Time).ToArray();
+            var moduleFrames = modules[id].OrderBy(x => x.Time).ThenBy(x => x.PacketIndex).ToArray();
             var visible = intervals[id].ToArray();
             death.TryGetValue(id, out var died);
             var times = new SortedSet<float> { 0, endTime };
@@ -182,7 +182,8 @@ public static class ReplayStatisticsBuilder
             {
                 EntityId = id, TeamId = vehicle.TeamId, Nickname = vehicle.Nickname, VehicleName = vehicle.VehicleName,
                 MaxHp = vehicle.InitialHealth, Movement = movements[id].ToArray(), Turret = turrets[id].ToArray(),
-                States = states, Visibility = visible, ConsumableUses = uses[id].ToArray(), Shots = shots[id].ToArray()
+                States = states, Visibility = visible, ConsumableUses = uses[id].ToArray(), Shots = shots[id].ToArray(),
+                Reload = ReplayReloadTimeline.Build(result.ReloadEvents.Where(x => x.EntityId == id), shots[id])
             });
         }
 

@@ -34,15 +34,15 @@ public static class ModulePacketDecoder
     public const uint ModuleStateMethodId = 20;
     public const uint ModuleHitSummaryMethodId = 45;
 
-    public static ModuleStateCandidateFrame? TryDecodeModuleState(EntityMethodFrame method)
+    public static ModuleStateCandidateFrame? TryDecodeModuleState(EntityMethodFrame method, int idWidth = 1)
     {
-        if (method.MethodId != ModuleStateMethodId || method.MethodPayload.Length < 10)
+        if (idWidth is not (1 or 2) || method.MethodId != ModuleStateMethodId || method.MethodPayload.Length != 9 + idWidth)
         {
             return null;
         }
 
         var payload = method.MethodPayload;
-        var sourceEntityId = BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(6, 4));
+        var sourceEntityId = BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(5 + idWidth, 4));
 
         return new ModuleStateCandidateFrame(
             method.PacketIndex,
@@ -50,13 +50,13 @@ public static class ModulePacketDecoder
             method.ClockSeconds,
             BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(0, 4)),
             payload[4],
-            payload[5],
+            idWidth == 2 ? BinaryPrimitives.ReadUInt16LittleEndian(payload.AsSpan(5, 2)) : payload[5],
             sourceEntityId == 0 ? null : sourceEntityId);
     }
 
-    public static IReadOnlyList<ModuleHitSummaryCandidateFrame> DecodeModuleHitSummary(EntityMethodFrame method)
+    public static IReadOnlyList<ModuleHitSummaryCandidateFrame> DecodeModuleHitSummary(EntityMethodFrame method, int idWidth = 1)
     {
-        if (method.MethodId != ModuleHitSummaryMethodId || method.MethodPayload.Length < 9)
+        if (idWidth is not (1 or 2) || method.MethodId != ModuleHitSummaryMethodId || method.MethodPayload.Length < 9)
         {
             return [];
         }
@@ -64,6 +64,8 @@ public static class ModulePacketDecoder
         var payload = method.MethodPayload;
         var entityId = BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(0, 4));
         var moduleCount = payload[8];
+        var entrySize = idWidth + 2;
+        if (payload.Length != 9 + moduleCount * entrySize) return [];
         if (moduleCount == 0)
         {
             return [];
@@ -72,17 +74,17 @@ public static class ModulePacketDecoder
         var result = new List<ModuleHitSummaryCandidateFrame>();
         var offset = 9;
 
-        for (var index = 0; index < moduleCount && offset + 1 < payload.Length; index++)
+        for (var index = 0; index < moduleCount; index++)
         {
             result.Add(new ModuleHitSummaryCandidateFrame(
                 method.PacketIndex,
                 method.PacketOffset,
                 method.ClockSeconds,
                 entityId,
-                payload[offset + 1],
-                payload[offset]));
+                idWidth == 2 ? BinaryPrimitives.ReadUInt16LittleEndian(payload.AsSpan(offset + idWidth, 2)) : payload[offset + 1],
+                idWidth == 2 ? BinaryPrimitives.ReadUInt16LittleEndian(payload.AsSpan(offset, 2)) : payload[offset]));
 
-            offset += 3;
+            offset += entrySize;
         }
 
         return result;

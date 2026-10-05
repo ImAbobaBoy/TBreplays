@@ -82,6 +82,7 @@ public sealed record ReplayPlaybackData
 
 public sealed record ReplayVehicleTrack
 {
+    public IReadOnlyList<ReplayReloadFrame> Reload { get; init; } = [];
     public uint EntityId { get; init; }
     public int TeamId { get; init; }
     public string Nickname { get; init; } = "";

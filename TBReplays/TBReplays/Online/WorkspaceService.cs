@@ -91,7 +91,7 @@ public sealed class WorkspaceService
                             var source = Find(command.SourceSlideId);
                             if (source is null || source.MapId != command.MapId) return Fail("slideNotFound");
                             var copy = _files.Read(command.SourceSlideId == "legacy" ? "sketch.json" : "sketch-" + command.SourceSlideId + ".json", () => new SketchDocument { MapId = source.MapId });
-                            copy.UndoHistory.Clear(); copy.RecentOperations.Clear();
+                            copy.UndoHistory.Clear(); copy.RedoHistory.Clear(); copy.RecentOperations.Clear();
                             await _files.WriteAsync("sketch-" + newSlide.Id + ".json", copy, CancellationToken.None);
                         }
                         slides.Add(newSlide);

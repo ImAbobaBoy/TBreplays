@@ -26,7 +26,8 @@ public sealed class SketchService(OnlineFiles files, OnlineSecurity security,
             var document = SlideDocument(slideId);
             return JsonSerializer.Deserialize<SketchState>(JsonSerializer.Serialize(new SketchState(document.Revision,
                 document.MapId, document.MapRevision, document.Strokes.Values.ToArray(), document.Tanks.Values.ToArray(),
-                slideId, document.UndoHistory.Count(entry => entry.UserId == userId)), OnlineFiles.Json), OnlineFiles.Json)!;
+                slideId, document.UndoHistory.Count(entry => entry.UserId == userId),
+                document.RedoHistory.Count(entry => entry.UserId == userId)), OnlineFiles.Json), OnlineFiles.Json)!;
         } finally { _gate.Release(); }
     }
 
@@ -73,30 +74,43 @@ public sealed class SketchService(OnlineFiles files, OnlineSecurity security,
                 if (command.MapRevision != document.MapRevision) return new(false, "mapConflict", null);
                 var next = JsonSerializer.Deserialize<SketchDocument>(JsonSerializer.Serialize(document, OnlineFiles.Json), OnlineFiles.Json)!;
                 var id = command.Stroke?.Id ?? command.StrokeId;
-                if (command.Kind == "undo")
+                if (command.Kind is "undo" or "redo")
                 {
+                    var undo = command.Kind == "undo";
                     if (command.ExpectedRevision != document.Revision) return new(false, "revisionConflict", null);
-                    var index = next.UndoHistory.FindLastIndex(entry => entry.UserId == user.Id);
-                    if (index < 0) return new(false, "nothingToUndo", null);
-                    var entry = next.UndoHistory[index];
-                    if (entry.AfterStrokes.Any(pair => !Same(pair.Value, document.Strokes.GetValueOrDefault(pair.Key)))
-                        || entry.AfterTanks.Any(pair => !Same(pair.Value, document.Tanks.GetValueOrDefault(pair.Key))))
-                        return new(false, "undoConflict", null);
-                    foreach (var pair in entry.BeforeStrokes) {
+                    var history = undo ? next.UndoHistory : next.RedoHistory;
+                    var index = history.FindLastIndex(entry => entry.UserId == user.Id);
+                    if (index < 0) return new(false, undo ? "nothingToUndo" : "nothingToRedo", null);
+                    var entry = history[index];
+                    var fromStrokes = undo ? entry.AfterStrokes : entry.BeforeStrokes;
+                    var fromTanks = undo ? entry.AfterTanks : entry.BeforeTanks;
+                    var toStrokes = undo ? entry.BeforeStrokes : entry.AfterStrokes;
+                    var toTanks = undo ? entry.BeforeTanks : entry.AfterTanks;
+                    if (fromStrokes.Any(pair => !Same(pair.Value, document.Strokes.GetValueOrDefault(pair.Key)))
+                        || fromTanks.Any(pair => !Same(pair.Value, document.Tanks.GetValueOrDefault(pair.Key))))
+                        return new(false, undo ? "undoConflict" : "redoConflict", null);
+                    foreach (var pair in toStrokes) {
                         if (pair.Value is null) { next.Strokes.Remove(pair.Key); next.DeletedStrokeIds.Add(pair.Key); }
                         else { next.Strokes[pair.Key] = pair.Value with { Revision = next.Revision + 1 }; next.DeletedStrokeIds.Remove(pair.Key); }
                     }
-                    foreach (var pair in entry.BeforeTanks) {
+                    foreach (var pair in toTanks) {
                         if (pair.Value is null) { next.Tanks.Remove(pair.Key); next.DeletedTankIds.Add(pair.Key); }
                         else { next.Tanks[pair.Key] = pair.Value with { Revision = next.Revision + 1 }; next.DeletedTankIds.Remove(pair.Key); }
                     }
-                    next.UndoHistory.RemoveAt(index);
-                    foreach (var earlier in next.UndoHistory.Where(item => item.UserId == user.Id)) {
-                        foreach (var pair in entry.BeforeStrokes)
-                            if (earlier.AfterStrokes.TryGetValue(pair.Key, out var value) && Same(value, pair.Value)) earlier.AfterStrokes[pair.Key] = next.Strokes.GetValueOrDefault(pair.Key);
-                        foreach (var pair in entry.BeforeTanks)
-                            if (earlier.AfterTanks.TryGetValue(pair.Key, out var value) && Same(value, pair.Value)) earlier.AfterTanks[pair.Key] = next.Tanks.GetValueOrDefault(pair.Key);
+                    history.RemoveAt(index);
+                    foreach (var earlier in history.Where(item => item.UserId == user.Id)) {
+                        var strokes = undo ? earlier.AfterStrokes : earlier.BeforeStrokes;
+                        var tanks = undo ? earlier.AfterTanks : earlier.BeforeTanks;
+                        foreach (var pair in toStrokes)
+                            if (strokes.TryGetValue(pair.Key, out var value) && Same(value, pair.Value)) strokes[pair.Key] = next.Strokes.GetValueOrDefault(pair.Key);
+                        foreach (var pair in toTanks)
+                            if (tanks.TryGetValue(pair.Key, out var value) && Same(value, pair.Value)) tanks[pair.Key] = next.Tanks.GetValueOrDefault(pair.Key);
                     }
+                    var restoredStrokes = toStrokes.Keys.ToDictionary(key => key, key => next.Strokes.GetValueOrDefault(key));
+                    var restoredTanks = toTanks.Keys.ToDictionary(key => key, key => next.Tanks.GetValueOrDefault(key));
+                    if (undo) next.RedoHistory.Add(entry with { BeforeStrokes = restoredStrokes, BeforeTanks = restoredTanks });
+                    else next.UndoHistory.Add(entry with { BeforeStrokes = fromStrokes, BeforeTanks = fromTanks,
+                        AfterStrokes = restoredStrokes, AfterTanks = restoredTanks });
                     next.MapRevision++;
                 }
                 else if (command.Kind is "upsert" or "remove")
@@ -160,14 +174,19 @@ public sealed class SketchService(OnlineFiles files, OnlineSecurity security,
                 }
                 if (next.Strokes.Count > 1000 || next.Strokes.Values.Sum(value => value.Stroke.Points.Length) > 100000 || next.Tanks.Count > 256) return new(false, "undoLimit", null);
                 if (next.DeletedStrokeIds.Count > 10000 || next.DeletedTankIds.Count > 10000) return new(false, "tombstoneLimit", null);
-                if (command.Kind == "setMap") next.UndoHistory.Clear();
-                else if (command.Kind != "undo") {
+                if (command.Kind == "setMap") { next.UndoHistory.Clear(); next.RedoHistory.Clear(); }
+                else if (command.Kind is not ("undo" or "redo")) {
+                    next.RedoHistory.RemoveAll(entry => entry.UserId == user.Id);
                     var strokeIds = document.Strokes.Keys.Union(next.Strokes.Keys).Where(key => !Same(document.Strokes.GetValueOrDefault(key), next.Strokes.GetValueOrDefault(key))).ToArray();
                     var tankIds = document.Tanks.Keys.Union(next.Tanks.Keys).Where(key => !Same(document.Tanks.GetValueOrDefault(key), next.Tanks.GetValueOrDefault(key))).ToArray();
                     if (strokeIds.Length + tankIds.Length > 0) next.UndoHistory.Add(new(user.Id,
                         strokeIds.ToDictionary(key => key, key => document.Strokes.GetValueOrDefault(key)), strokeIds.ToDictionary(key => key, key => next.Strokes.GetValueOrDefault(key)),
                         tankIds.ToDictionary(key => key, key => document.Tanks.GetValueOrDefault(key)), tankIds.ToDictionary(key => key, key => next.Tanks.GetValueOrDefault(key))));
                     while (next.UndoHistory.Count > 256 || next.UndoHistory.Sum(item => item.BeforeStrokes.Values.Concat(item.AfterStrokes.Values).Sum(value => value?.Stroke.Points.Length ?? 0)) > 200000) next.UndoHistory.RemoveAt(0);
+                }
+                while (next.UndoHistory.Count + next.RedoHistory.Count > 256
+                    || next.UndoHistory.Concat(next.RedoHistory).Sum(item => item.BeforeStrokes.Values.Concat(item.AfterStrokes.Values).Sum(value => value?.Stroke.Points.Length ?? 0)) > 200000) {
+                    if (next.UndoHistory.Count > 0) next.UndoHistory.RemoveAt(0); else next.RedoHistory.RemoveAt(0);
                 }
                 next.Revision++;
                 var change = new SketchChange(next.Revision, next.MapRevision, command.OperationId,
@@ -191,8 +210,8 @@ public sealed class SketchService(OnlineFiles files, OnlineSecurity security,
     {
         if (command is null || !Guid.TryParse(command.OperationId, out _)
             || command.ExpectedRevision < 0 || command.MapRevision < 0) return "invalidCommand";
-        if (command.Kind is not ("upsert" or "remove" or "clear" or "setMap" or "upsertTank" or "removeTank" or "clearTanks" or "undo")) return "invalidKind";
-        if (command.Kind == "undo") return command.Stroke is null && command.StrokeId is null && command.MapId is null && command.Tank is null && command.TankId is null ? null : "invalidCommand";
+        if (command.Kind is not ("upsert" or "remove" or "clear" or "setMap" or "upsertTank" or "removeTank" or "clearTanks" or "undo" or "redo")) return "invalidKind";
+        if (command.Kind is "undo" or "redo") return command.Stroke is null && command.StrokeId is null && command.MapId is null && command.Tank is null && command.TankId is null ? null : "invalidCommand";
         if (command.Kind is "upsertTank" or "removeTank" or "clearTanks")
         {
             if (command.Stroke is not null || command.StrokeId is not null || command.MapId is not null) return "invalidCommand";

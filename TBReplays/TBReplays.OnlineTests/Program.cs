@@ -231,7 +231,7 @@ try
     async Task<JsonNode> Edit(ClientWebSocket socket, string kind, SketchStroke? drawing = null, long entityRevision = 0, SketchTank? vehicle = null, string? strokeId = null) {
         var board = await ReplayCall(socket, "GetState");
         return await ReplayCall(socket, "Apply", new SketchCommand(Guid.NewGuid().ToString(), kind,
-            kind is "undo" or "clear" or "clearTanks" ? board["revision"]!.GetValue<long>() : entityRevision,
+            kind is "undo" or "redo" or "clear" or "clearTanks" ? board["revision"]!.GetValue<long>() : entityRevision,
             board["mapRevision"]!.GetValue<long>(), drawing, StrokeId: strokeId, Tank: vehicle, SlideId: board["slideId"]!.GetValue<string>()));
     }
     var isolated = stroke with { Id = "isolated-line" };
@@ -262,7 +262,20 @@ try
     Check(afterUndo["strokes"]![0]!["stroke"]!["color"]!.GetValue<string>() == isolated.Color, "undo restores previous style");
     Check((await Edit(slideA, "undo"))["applied"]!.GetValue<bool>(), "second undo removes creation after revision rebasing");
     Check((await ReplayCall(slideA, "GetState"))["strokes"]!.AsArray().Count == 0, "multi-step undo ends at empty slide");
+    Check((await ReplayCall(slideA, "GetState"))["redoCount"]!.GetValue<int>() == 2, "two undo operations expose two redo steps");
+    Check((await Edit(slideA, "redo"))["applied"]!.GetValue<bool>(), "redo restores creation");
+    Check((await Edit(slideA, "redo"))["applied"]!.GetValue<bool>(), "redo restores style change after revision rebasing");
+    Check((await ReplayCall(slideA, "GetState"))["strokes"]![0]!["stroke"]!["color"]!.GetValue<string>() == modified.Color, "redo restores edited stroke color");
+    Check((await Edit(slideA, "undo"))["applied"]!.GetValue<bool>(), "undo a redone edit");
+    Check((await Edit(slideA, "undo"))["applied"]!.GetValue<bool>(), "undo a redone creation");
     Check((await Edit(slideA, "upsertTank", vehicle: tank with { Id = "undo-tank" }))["applied"]!.GetValue<bool>(), "tank placement on slide");
+    Check((await Edit(slideA, "redo"))["error"]!.GetValue<string>() == "nothingToRedo", "fresh edit invalidates own redo branch");
+    var tankState = (await ReplayCall(slideA, "GetState"))["tanks"]![0]!;
+    Check((await Edit(slideA, "upsertTank", vehicle: tank with { Id = "undo-tank", Color = "#ba78ff" }, entityRevision: tankState["revision"]!.GetValue<long>()))["applied"]!.GetValue<bool>(), "placed tank can be recolored");
+    Check((await Edit(slideA, "undo"))["applied"]!.GetValue<bool>(), "undo tank color");
+    Check((await ReplayCall(slideA, "GetState"))["tanks"]![0]!["tank"]!["color"]!.GetValue<string>() == tank.Color, "original tank color restored");
+    Check((await Edit(slideA, "redo"))["applied"]!.GetValue<bool>(), "redo tank color");
+    Check((await Edit(slideA, "undo"))["applied"]!.GetValue<bool>(), "undo tank color again");
     Check((await Edit(slideA, "undo"))["applied"]!.GetValue<bool>(), "tank placement undo");
     Check((await ReplayCall(slideA, "GetState"))["tanks"]!.AsArray().Count == 0, "undo removes tank");
     var shared = isolated with { Id = "shared-conflict" };
@@ -270,7 +283,16 @@ try
     await ReplayCall(slideB, "SelectSlide", "slide-a");
     Check((await Edit(slideB, "upsert", shared with { Color = "#654321" }, sharedCreated["change"]!["revision"]!.GetValue<long>()))["applied"]!.GetValue<bool>(), "peer changes same object");
     Check((await Edit(slideA, "undo"))["error"]!.GetValue<string>() == "undoConflict", "undo protects peer edit");
+    var redoStroke = shared with { Id = "redo-peer-conflict" };
+    var redoCreated = await Edit(slideA, "upsert", redoStroke);
+    await Edit(slideA, "upsert", redoStroke with { Color = "#ffffff" }, redoCreated["change"]!["revision"]!.GetValue<long>());
+    await Edit(slideA, "undo");
+    var redoRestored = (await ReplayCall(slideA, "GetState"))["strokes"]!.AsArray().First(value => value!["stroke"]!["id"]!.GetValue<string>() == redoStroke.Id)!;
+    await Edit(slideB, "upsert", redoStroke with { Color = "#123456" }, redoRestored["revision"]!.GetValue<long>());
+    Check((await Edit(slideA, "redo"))["error"]!.GetValue<string>() == "redoConflict", "redo protects intervening peer edit");
     await ReplayCall(slideB, "SelectSlide", "slide-b");
+    Check((await ReplayCall(slideA, "UpdateScenePresence", new ScenePresenceCommand("slide-a", 1, new(10, 20, 30))))!.GetValue<bool>(), "editor cursor accepted");
+    Check((await ReplayCall(slideB, "GetScenePresence")).AsArray().Count == 0, "editor cursor is isolated to its slide");
     await Workspace("present");
     var beforeRepeat = await ReplayCall(slideA, "GetWorkspace");
     await ReplayCall(slideA, "SelectSlide", "slide-a");
@@ -278,7 +300,23 @@ try
     var forced = await ReplayCall(slideB, "GetWorkspace");
     Check(forced["activeSlideId"]!.GetValue<string>() == "slide-a", "presentation forces same slide");
     Check(!(await ReplayCall(slideB, "SelectSlide", "slide-b"))["applied"]!.GetValue<bool>(), "participant cannot escape presentation");
+    var cameraPose = new SceneCamera(new(10, 150, 300), new(0, 0, 0, 1), new(10, 0, 0), 60);
+    await Task.Delay(50);
+    Check((await ReplayCall(slideA, "UpdateScenePresence", new ScenePresenceCommand("slide-a", 2, new(15, 20, 30), cameraPose))).GetValue<bool>(), "presenter camera accepted");
+    var presenceFrames = (await ReplayCall(slideB, "GetScenePresence")).AsArray();
+    Check(presenceFrames.Count == 1 && presenceFrames[0]!["camera"]!["position"]!["z"]!.GetValue<double>() == 300, "participant receives presenter camera snapshot");
+    Check(presenceFrames[0]!["login"]!.GetValue<string>() == "admin", "cursor identity comes from authenticated session");
+    Check(!(await ReplayCall(slideA, "UpdateScenePresence", new ScenePresenceCommand("slide-a", 1, new(1, 2, 3), cameraPose))).GetValue<bool>(), "stale presence sequence rejected");
+    async Task PresenceError(ClientWebSocket socket, ScenePresenceCommand command, string error) {
+        var invocation = Guid.NewGuid().ToString();
+        await Send(socket, new { type = 1, invocationId = invocation, target = "UpdateScenePresence", arguments = new[] { command } });
+        Check((await Completion(socket, invocation))["error"]!.GetValue<string>().Contains(error), "presence rejects " + error);
+    }
+    await PresenceError(slideB, new("slide-a", 1, new(0, 0, 0), cameraPose), "notPresenter");
+    await PresenceError(slideA, new("slide-a", 3, new(100001, 0, 0)), "invalidPresence");
+    await PresenceError(slideA, new("slide-a", 3, Camera: cameraPose with { Quaternion = new(0, 0, 0, 0) }), "invalidPresence");
     await ReplayCall(slideA, "SelectSlide", "slide-b");
+    Check((await ReplayCall(slideB, "GetScenePresence")).AsArray().Count == 0, "camera and cursors from previous slide cleared");
     Check((await ReplayCall(slideB, "GetState"))["slideId"]!.GetValue<string>() == "slide-b", "presenter navigation follows for everyone");
     await Workspace("stopPresentation");
     Check((await ReplayCall(slideA, "GetWorkspace"))["activeSlideId"]!.GetValue<string>() == "slide-b", "presenter remains on current slide");
@@ -304,6 +342,8 @@ try
     Check((await ReplayCommand(slideB, await ReplaySnapshot(slideB), "seek", time: 5))["error"]!.GetValue<string>() == "forbidden", "observer cannot change replay");
     var observerWorkspace = await ReplayCall(slideB, "GetWorkspace");
     Check((await ReplayCall(slideB, "WorkspaceApply", new WorkspaceCommand(Guid.NewGuid().ToString(), "present", observerWorkspace["revision"]!.GetValue<long>())))["error"]!.GetValue<string>() == "forbidden", "observer cannot start presentation");
+    await PresenceError(slideB, new("slide-b", 5, new(0, 0, 0)), "forbidden");
+    Check((await Edit(slideB, "redo"))["error"]!.GetValue<string>() == "forbidden", "observer cannot redo editor actions");
     var textSign = new SketchStroke("text-sign", "#ffff00", 10, "text", "none", [new(10, 20, 30)], "Вперёд\nДержать позицию");
     var textCreated = await Edit(slideA, "upsert", textSign);
     Check(textCreated["applied"]!.GetValue<bool>(), "text sign can be placed");
@@ -325,6 +365,11 @@ try
     await ReplayCall(finalSocket, "SelectSlide", "slide-copy");
     Check((await ReplayCall(finalSocket, "GetState"))["strokes"]![0]!["stroke"]!["style"]!.GetValue<string>() == "marker", "slide drawings survive server restart");
     Check((await ReplayCall(finalSocket, "GetState"))["strokes"]!.AsArray().Any(value => value!["stroke"]!["text"]?.GetValue<string>() == textSign.Text), "text signs survive server restart");
+    Check((await ReplayCall(finalSocket, "GetScenePresence")).AsArray().Count == 0, "transient cursors/cameras never persist across server restart");
+    Check((await ReplayCall(finalSocket, "GetState"))["redoCount"]!.GetValue<int>() > 0, "redo history survives server restart");
+    Check((await Edit(finalSocket, "redo"))["applied"]!.GetValue<bool>(), "redo text removal after restart");
+    Check(!(await ReplayCall(finalSocket, "GetState"))["strokes"]!.AsArray().Any(value => value!["stroke"]!["text"]?.GetValue<string>() == textSign.Text), "redo removes restored sign");
+    Check((await Edit(finalSocket, "undo"))["applied"]!.GetValue<bool>(), "undo redone removal after restart");
     var finalWorkspace = await ReplayCall(finalSocket, "GetWorkspace");
     foreach (var slide in finalWorkspace["slides"]!.AsArray()) {
         var deletionWorkspace = await ReplayCall(finalSocket, "GetWorkspace");

@@ -55,9 +55,12 @@ public sealed class ReplayParseService
         var vehiclesWithEffectiveHp = BuildVehicleEffectiveHp(vehicles, healthFrames, snapshots);
         var visibilityFrames = BuildVisibilityFrames(packets, vehiclesByEntityId);
         var extraStateFrames = BuildExtraStateFrames(packets, vehiclesByEntityId, catalog, snapshots, extraIdWidth);
-        var moduleCompactMarkers = BuildModuleCompactMarkers(packets, vehiclesByEntityId, catalog);
-        var moduleStateEvents = BuildModuleStateEvents(packets, moduleCompactMarkers, vehiclesByEntityId, catalog);
-        var moduleHitSummaryEvents = BuildModuleHitSummaryEvents(packets, vehiclesByEntityId, catalog);
+        // The old compact marker profile is not valid for two-byte extra IDs.
+        var moduleCompactMarkers = extraIdWidth == 1 ? BuildModuleCompactMarkers(packets, vehiclesByEntityId, catalog) : [];
+        var moduleStateEvents = BuildModuleStateEvents(packets, moduleCompactMarkers, vehiclesByEntityId, catalog, extraIdWidth);
+        var moduleHitSummaryEvents = BuildModuleHitSummaryEvents(packets, vehiclesByEntityId, catalog, extraIdWidth);
+        var reloadEvents = packets.SelectMany(p => ReloadPacketDecoder.Decode(p, replayData.Header.ClientVersion))
+            .Where(x => vehiclesByEntityId.ContainsKey(x.EntityId)).OrderBy(x => x.Time).ThenBy(x => x.PacketIndex).ToArray();
         var consumableActivationEvents = BuildConsumableActivationEvents(extraStateFrames, moduleStateEvents);
         var damageEvents = BuildDamageEvents(healthFrames);
         var deathEvents = BuildDeathEvents(
@@ -92,6 +95,8 @@ public sealed class ReplayParseService
 
         var result = new ReplayParseResult
         {
+            VehicleStateProtocolVersion = 1,
+            ReloadEvents = reloadEvents,
             ShotProtocolVersion = 1,
             RecorderEntityId = vehicles.FirstOrDefault(x => x.AccountId == metaInfo.RecorderAccountId)?.EntityId,
             RecorderTeamId = vehicles.FirstOrDefault(x => x.AccountId == metaInfo.RecorderAccountId)?.TeamId,
@@ -333,6 +338,8 @@ public sealed class ReplayParseService
             .Where(x => vehiclesByEntityId.ContainsKey(x.ShooterEntityId))
             .Select(x => new ReplayShotEvent
             {
+                PacketIndex = x.PacketIndex,
+                PacketOffset = x.PacketOffset,
                 Time = x.ClockSeconds,
                 ShooterEntityId = x.ShooterEntityId,
                 ProjectileId = x.ProjectileId,
@@ -667,7 +674,7 @@ public sealed class ReplayParseService
         IReadOnlyList<ReplayPacket> packets,
         IReadOnlyList<ReplayModuleCompactMarker> compactMarkers,
         IReadOnlyDictionary<uint, ReplayVehicleInfo> vehiclesByEntityId,
-        ClientGameDataCatalog catalog)
+        ClientGameDataCatalog catalog, int idWidth)
     {
         if (vehiclesByEntityId.Count == 0)
         {
@@ -678,7 +685,7 @@ public sealed class ReplayParseService
             .Select(EntityMethodPacketDecoder.TryDecode)
             .Where(x => x is not null)
             .Select(x => x!)
-            .Select(ModulePacketDecoder.TryDecodeModuleState)
+            .Select(x => ModulePacketDecoder.TryDecodeModuleState(x, idWidth))
             .Where(x => x is not null)
             .Select(x => x!)
             .Where(x => vehiclesByEntityId.ContainsKey(x.EntityId))
@@ -717,15 +724,14 @@ public sealed class ReplayParseService
         ClientGameDataCatalog catalog)
     {
         var state = ResolveType20ModuleState(source.StateCode);
-        if (state == ReplayModuleStateNames.Unknown)
-        {
-            return null;
-        }
+        if (source.ModuleId == 0) return null;
 
         var module = ResolveModule(source.ModuleId, catalog);
 
         return new ReplayModuleStateEvent
         {
+            PacketIndex = source.PacketIndex,
+            PacketOffset = source.PacketOffset,
             Time = source.ClockSeconds,
             EntityId = source.EntityId,
             ModuleId = source.ModuleId,
@@ -735,14 +741,14 @@ public sealed class ReplayParseService
             State = state,
             SourceEntityId = source.SourceEntityId,
             Source = ReplayModuleEventSources.Channel8Type20,
-            Confidence = ReplayEventConfidences.Confirmed
+            Confidence = state == ReplayModuleStateNames.Unknown ? ReplayEventConfidences.Experimental : ReplayEventConfidences.Confirmed
         };
     }
 
     private static IReadOnlyList<ReplayModuleHitSummaryEvent> BuildModuleHitSummaryEvents(
         IReadOnlyList<ReplayPacket> packets,
         IReadOnlyDictionary<uint, ReplayVehicleInfo> vehiclesByEntityId,
-        ClientGameDataCatalog catalog)
+        ClientGameDataCatalog catalog, int idWidth)
     {
         if (vehiclesByEntityId.Count == 0)
         {
@@ -753,7 +759,7 @@ public sealed class ReplayParseService
             .Select(EntityMethodPacketDecoder.TryDecode)
             .Where(x => x is not null)
             .Select(x => x!)
-            .SelectMany(ModulePacketDecoder.DecodeModuleHitSummary)
+            .SelectMany(x => ModulePacketDecoder.DecodeModuleHitSummary(x, idWidth))
             .Where(x => vehiclesByEntityId.ContainsKey(x.EntityId))
             .Select(x => ToReplayModuleHitSummaryEvent(x, catalog))
             .Where(x => x is not null)
@@ -769,15 +775,14 @@ public sealed class ReplayParseService
         ClientGameDataCatalog catalog)
     {
         var state = ResolveType45ModuleState(source.StateCode);
-        if (state == ReplayModuleStateNames.Unknown)
-        {
-            return null;
-        }
+        if (source.ModuleId == 0) return null;
 
         var module = ResolveModule(source.ModuleId, catalog);
 
         return new ReplayModuleHitSummaryEvent
         {
+            PacketIndex = source.PacketIndex,
+            PacketOffset = source.PacketOffset,
             Time = source.ClockSeconds,
             EntityId = source.EntityId,
             ModuleId = source.ModuleId,
@@ -786,7 +791,7 @@ public sealed class ReplayParseService
             StateCode = source.StateCode,
             State = state,
             Source = ReplayModuleEventSources.Channel8Type45,
-            Confidence = ReplayEventConfidences.Confirmed
+            Confidence = state == ReplayModuleStateNames.Unknown ? ReplayEventConfidences.Experimental : ReplayEventConfidences.Confirmed
         };
     }
 
@@ -935,8 +940,10 @@ public sealed class ReplayParseService
         {
             4 => ReplayModuleStateNames.Damaged,
             5 => ReplayModuleStateNames.Destroyed,
+            10 => ReplayModuleStateNames.Damaged,
             18 => ReplayModuleStateNames.AutoRestored,
             19 => ReplayModuleStateNames.RestoredByRepairKit,
+            22 => ReplayModuleStateNames.RestoredByRepairKit,
             _ => ReplayModuleStateNames.Unknown
         };
     }

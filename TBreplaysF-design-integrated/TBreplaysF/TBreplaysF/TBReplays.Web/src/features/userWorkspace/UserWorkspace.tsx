@@ -3,6 +3,7 @@ import { createId } from '../../utils/createId';
 import { AccountDialog, OnlinePanel, useOnline } from '../online/OnlineRoot';
 import { useMapCatalog } from '../maps/MapCatalog';
 import { WorkspaceSlides } from './WorkspaceSlides';
+import { useScenePresence } from '../online/useScenePresence';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AppMode } from '../../app/AppMode';
@@ -135,23 +136,31 @@ export function UserWorkspace({
   const [workspaceError, setWorkspaceError] = useState('');
   const [accountOpen, setAccountOpen] = useState(false);
   const undo = () => { void online.client.undo().catch(error => setWorkspaceError(error instanceof Error ? error.message : 'Не удалось отменить действие.')); };
+  const redo = () => { void online.client.redo().catch(error => setWorkspaceError(error instanceof Error ? error.message : 'Не удалось вернуть действие.')); };
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z' || event.shiftKey || event.altKey) return;
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      const isUndo = event.code === 'KeyZ' && !event.shiftKey;
+      const isRedo = event.code === 'KeyY' || event.code === 'KeyZ' && event.shiftKey;
+      if (!isUndo && !isRedo) return;
       const target = event.target;
       if (target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
-      if (!online.canEdit || online.state.pending || !(online.state.board?.undoCount ?? 0)) return;
-      event.preventDefault(); undo();
+      if (!online.canEdit || online.state.pending || !(isUndo ? online.state.board?.undoCount : online.state.board?.redoCount)) return;
+      event.preventDefault(); if (isUndo) undo(); else redo();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [online.canEdit, online.state.pending, online.state.board?.undoCount, online.client]);
+  }, [online.canEdit, online.state.pending, online.state.board?.undoCount, online.state.board?.redoCount, online.client]);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [markerLabel, setMarkerLabel] = useState('');
   const [markerTankType, setMarkerTankType] = useState<TankVisualKey>('heavy');
   const [replays, setReplays] = useState<WorkspaceReplayRow[]>([]);
   const [viewerReady, setViewerReady] = useState(false);
+  const [presenceEngine, setPresenceEngine] = useState<ViewerEngine | null>(null);
+  const [followPresenter, setFollowPresenter] = useState(true);
+  useEffect(() => { setFollowPresenter(true); }, [online.state.workspace?.presenterConnectionId]);
+  useScenePresence(presenceEngine, viewerReady && state.mapLoaded, followPresenter);
   const [flightCamera, setFlightCamera] = useState(false);
   const [cameraSpeed, setCameraSpeed] = useState(3);
   const [signText, setSignText] = useState('');
@@ -228,6 +237,24 @@ export function UserWorkspace({
       onManualTankChange({ ...selectedTank, ...patch });
     }
   };
+  const colorDraft = useRef(false);
+  useEffect(() => { colorDraft.current = false; if (selectedTank) onDrawingColorChange(selectedTank.color); }, [selectedTank?.id]);
+  const previewSelectedTank = (patch: Partial<ManualTankModel>) => {
+    if (!selectedTank || !online.canEdit) return;
+    const tank = { ...selectedTank, ...patch };
+    presenceEngine?.setManualTanks(state.manualTanks.map(item => item.id === tank.id ? tank : item));
+    onTankChanged(tank);
+  };
+  const changeToolColor = (color: string, commit = true) => {
+    onDrawingColorChange(color);
+    if (selectedTank && online.canEdit && (state.selectedTool === 'select' || state.selectedTool === 'tankAim')) {
+      colorDraft.current = !commit;
+      if (commit) updateSelectedTank({ color }); else previewSelectedTank({ color });
+    }
+  };
+  const commitToolColor = () => {
+    if (colorDraft.current && selectedTank && online.canEdit) { colorDraft.current = false; updateSelectedTank({ color: state.drawingColor }); }
+  };
 
   const updateSelectedTankPose = (patch: Partial<ManualTankModel['pose']>) => {
     if (selectedTank) {
@@ -255,13 +282,13 @@ export function UserWorkspace({
     const position = swatchPositions[index] ?? 0;
     setSelectedSwatchIndex(index);
     setColorSliderPosition(position);
-    onDrawingColorChange(interpolateColor(position));
+    changeToolColor(interpolateColor(position));
   };
 
   const changeColorSlider = (position: number) => {
     setColorSliderPosition(position);
     setSwatchPositions((current) => current.map((value, index) => index === selectedSwatchIndex ? position : value));
-    onDrawingColorChange(interpolateColor(position));
+    changeToolColor(interpolateColor(position), false);
   };
 
   const workspaceClassName = [
@@ -347,7 +374,7 @@ export function UserWorkspace({
             <section className="panel tools-panel">
               <div className="tools-top">
                 <div className="tools-header">
-                  <span className="panel-label static">Инструменты</span><button className="undo-button" type="button" title="Отменить последнее своё действие на этом слайде (Ctrl+Z)" disabled={!online.canEdit || online.state.pending || !(online.state.board?.undoCount ?? 0)} onClick={undo}>↶ Отмена</button>
+                  <span className="panel-label static">Инструменты</span><div className="history-buttons"><button className="undo-button" type="button" title="Отменить последнее своё действие на этом слайде (Ctrl+Z)" disabled={!online.canEdit || online.state.pending || !(online.state.board?.undoCount ?? 0)} onClick={undo}>↶ Отмена</button><button className="undo-button" type="button" title="Вернуть отменённое действие (Ctrl+Y / Ctrl+Shift+Z)" disabled={!online.canEdit || online.state.pending || !(online.state.board?.redoCount ?? 0)} onClick={redo}>↷ Вернуть</button></div>
                 </div>
 
                 <div className="controls-block">
@@ -377,6 +404,7 @@ export function UserWorkspace({
                         value={colorSliderPosition}
                         aria-label="Выбор цвета"
                         onChange={(event) => changeColorSlider(event.target.valueAsNumber)}
+                        onPointerUp={commitToolColor} onKeyUp={commitToolColor} onBlur={commitToolColor}
                       />
                     </div>
 
@@ -386,13 +414,13 @@ export function UserWorkspace({
                         type="color"
                         value={state.drawingColor}
                         hidden
-                        onChange={(event) => onDrawingColorChange(event.target.value)}
+                        onChange={(event) => changeToolColor(event.target.value, false)} onBlur={commitToolColor}
                       />
                     </label>
                   </div>
                 </div>
 
-                <div className={online.canEdit && state.mapLoaded && !flightCamera ? "tools-grid" : "tools-grid online-tools-readonly"} role="toolbar" aria-label="Инструменты">
+                <div className={online.canEdit && state.mapLoaded ? "tools-grid" : "tools-grid online-tools-readonly"} role="toolbar" aria-label="Инструменты">
                   <ToolSlot tool="select" selectedTool={state.selectedTool} label="Курсор" onSelect={onSelectedToolChange}><CursorIcon /></ToolSlot>
                   <ToolSlot tool="drawLine" selectedTool={state.selectedTool} label="Прямая линия" onSelect={onSelectedToolChange}><LineIcon /></ToolSlot>
                   <ToolSlot tool="draw" selectedTool={state.selectedTool} label="Кривая линия" onSelect={onSelectedToolChange}><CurveIcon /></ToolSlot>
@@ -407,6 +435,7 @@ export function UserWorkspace({
                 <span className="panel-label static">Настройки инструмента</span>
                 <div className="tool-settings-content" aria-live="polite">
                   <ToolSettings
+                    onPreviewSelectedTank={previewSelectedTank}
                     signText={signText} textSize={textSize} onSignTextChange={setSignText} onTextSizeChange={setTextSize}
                     state={state}
                     selectedTank={selectedTank}
@@ -493,7 +522,8 @@ export function UserWorkspace({
               <span className="panel-label">Карта</span>
               <div className="map-export-controls">
                 <button className="toolbar-add-button camera-mode-button" type="button" aria-pressed={flightCamera} onClick={() => setFlightCamera(value => !value)}>{flightCamera ? 'Камера: полёт' : 'Камера: орбита'}</button>
-                {flightCamera && <><select className="camera-speed-select" aria-label="Скорость камеры" value={cameraSpeed} onChange={event => setCameraSpeed(Number(event.target.value))}>{[1, 2, 3, 4, 5].map(speed => <option key={speed} value={speed}>Скорость {speed}</option>)}</select><span className="camera-help">WASD · ЛКМ · колесо · 1–5 · Q/E ↕</span></>}
+                {presentEnabled && !ownPresentation && <button className="toolbar-add-button follow-camera-button" type="button" aria-pressed={followPresenter} onClick={() => setFollowPresenter(value => !value)}>{followPresenter ? '✓ Следую за камерой' : 'Следовать за камерой'}</button>}
+                {flightCamera && <><select className="camera-speed-select" aria-label="Скорость камеры" value={cameraSpeed} onChange={event => setCameraSpeed(Number(event.target.value))}>{[1, 2, 3, 4, 5].map(speed => <option key={speed} value={speed}>Скорость {speed}</option>)}</select><span className="camera-help">WASD · ПКМ — обзор · ЛКМ — инструмент · колесо · 1–5 · Q/E ↕</span></>}
                 {online.state.status === 'offline' && <button onClick={() => void online.client.start()}>Подключиться</button>}
                 {(workspaceError || online.state.message) && <span role="alert">{workspaceError || online.state.message}</span>}
                 <label className="replay-export-toggle"><input type="checkbox" checked={includeReplayInPng} onChange={event => setIncludeReplayInPng(event.target.checked)} /><span className="toggle-check" aria-hidden="true">✓</span><span>С реплеем</span></label>
@@ -520,6 +550,7 @@ export function UserWorkspace({
                   onTankSelected={onTankSelected}
                   onReplayPlaybackChanged={onReplayPlaybackChanged}
                   onEngineReady={(engine) => {
+                    setPresenceEngine(engine);
                     setViewerReady(engine !== null);
                     onEngineReady(engine);
                   }}
@@ -575,6 +606,7 @@ function ToolSlot({
 }
 
 function ToolSettings({
+  onPreviewSelectedTank,
   signText, textSize, onSignTextChange, onTextSizeChange,
   state,
   selectedTank,
@@ -591,6 +623,7 @@ function ToolSettings({
   onUpdateSelectedTankPose,
   onSelectedToolChange,
 }: {
+  onPreviewSelectedTank: (patch: Partial<ManualTankModel>) => void;
   signText: string; textSize: number; onSignTextChange: (text: string) => void; onTextSizeChange: (size: number) => void;
   state: AppState;
   selectedTank: ManualTankModel | null;
@@ -688,8 +721,13 @@ function ToolSettings({
     return (
       <fieldset disabled={!canEdit} className="marker-settings selected-tank-settings tank-settings-fieldset">
         <input key={selectedTank.id + selectedTank.label} className="marker-label-input" defaultValue={selectedTank.label} maxLength={80} aria-label="Название танка" onBlur={event => { if (event.target.value !== selectedTank.label) onUpdateSelectedTank({ label: event.target.value }); }} />
-        <AngleControl label="Корпус" value={selectedTank.pose.bodyYawDegrees} onChange={(value) => onUpdateSelectedTankPose({ bodyYawDegrees: value })} />
-        <AngleControl label="Башня" value={selectedTank.pose.turretYawDegrees} onChange={(value) => onUpdateSelectedTank({ pose: { ...selectedTank.pose, turretYawDegrees: value }, aimTarget: null })} />
+        <p className="tiny-meta">Цвет выбранного танка — в общей палитре инструментов.</p>
+        <AngleControl key={selectedTank.id + '-body'} label="Корпус" value={selectedTank.pose.bodyYawDegrees} onPreview={value => {
+          const pose = { ...selectedTank.pose, bodyYawDegrees: value };
+          if (selectedTank.aimTarget) { const yaw = Math.atan2(selectedTank.aimTarget.x - pose.x, selectedTank.aimTarget.z - pose.z) * 180 / Math.PI - value; pose.turretYawDegrees = ((yaw + 180) % 360 + 360) % 360 - 180; }
+          onPreviewSelectedTank({ pose });
+        }} onChange={(value) => onUpdateSelectedTankPose({ bodyYawDegrees: value })} />
+        <AngleControl key={selectedTank.id + '-turret'} label="Башня" value={selectedTank.pose.turretYawDegrees} onPreview={value => onPreviewSelectedTank({ pose: { ...selectedTank.pose, turretYawDegrees: value }, aimTarget: null })} onChange={(value) => onUpdateSelectedTank({ pose: { ...selectedTank.pose, turretYawDegrees: value }, aimTarget: null })} />
         <button className="clear-marker-icons-button" type="button" aria-pressed={state.selectedTool === 'tankAim'} onClick={() => onSelectedToolChange(state.selectedTool === 'tankAim' ? 'select' : 'tankAim')}>
           {state.selectedTool === 'tankAim' ? 'Завершить зацел' : 'Указать зацел'}
         </button>
@@ -714,14 +752,15 @@ function StrokeOption({ active, kind, onClick }: { active: boolean; kind: 'solid
   );
 }
 
-function AngleControl({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+function AngleControl({ label, value, onChange, onPreview }: { label: string; value: number; onChange: (value: number) => void; onPreview: (value: number) => void }) {
   const [draft, setDraft] = useState(value);
+  const dirty = useRef(false);
   useEffect(() => setDraft(value), [value]);
-  const commit = () => { if (draft !== value) onChange(draft); };
+  const commit = () => { if (dirty.current) { dirty.current = false; onChange(draft); } };
   return <label className="angle-control">
     <span>{label}<b>{draft.toFixed(0)}°</b></span>
     <input aria-label={label} type="range" min={-180} max={180} value={draft}
-      onChange={event => setDraft(event.target.valueAsNumber)} onPointerUp={commit} onKeyUp={commit} onBlur={commit} />
+      onChange={event => { const angle = event.target.valueAsNumber; dirty.current = true; setDraft(angle); onPreview(angle); }} onPointerUp={commit} onKeyUp={commit} onBlur={commit} />
   </label>;
 }
 

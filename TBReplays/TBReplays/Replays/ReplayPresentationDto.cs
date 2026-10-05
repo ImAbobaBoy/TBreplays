@@ -3,6 +3,7 @@ namespace TBReplays.Replays;
 /// <summary>Ready-to-render contract. No legacy flat frame arrays or binary result fields.</summary>
 public sealed record ReplayPresentationDto
 {
+    public int VehicleStateProtocolVersion { get; init; }
     public uint? RecorderEntityId { get; init; }
     public int? RecorderTeamId { get; init; }
     public int SchemaVersion { get; init; }
@@ -20,6 +21,7 @@ public sealed record ReplayPresentationDto
 
     public static ReplayPresentationDto FromResult(ReplayParseResult result) => new()
     {
+        VehicleStateProtocolVersion = result.VehicleStateProtocolVersion,
         RecorderEntityId = result.RecorderEntityId, RecorderTeamId = result.RecorderTeamId,
         SchemaVersion = result.SchemaVersion, ClientVersion = result.ClientVersion,
         CatalogVersion = result.CatalogVersion, ArenaUniqueId = result.ArenaUniqueId,

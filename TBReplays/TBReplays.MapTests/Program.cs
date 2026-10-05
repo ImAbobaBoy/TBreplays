@@ -14,6 +14,12 @@ using TBReplays.Terrain;
 using TBReplays.ClientGameData;
 using TBReplays.Replays.Parser;
 
+if (args.Contains("--replay-states-only"))
+{
+    ReplayStateChecks.Run(args.Where(x => x.EndsWith(".tbreplay", StringComparison.OrdinalIgnoreCase)).ToArray());
+    return;
+}
+
 if (args.Contains("--replay-shots-only")) {
     var payload = new byte[37];
     BinaryPrimitives.WriteUInt32LittleEndian(payload, 1);

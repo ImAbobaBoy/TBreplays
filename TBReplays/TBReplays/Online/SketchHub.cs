@@ -5,7 +5,8 @@ namespace TBReplays.Online;
 
 [Authorize]
 public sealed class SketchHub(SketchService sketches, OnlineSecurity security,
-    OnlineConnections connections, OnlineFiles files, ReplaySyncService replays, WorkspaceService workspace) : Hub
+    OnlineConnections connections, OnlineFiles files, ReplaySyncService replays, WorkspaceService workspace,
+    ScenePresenceService presence) : Hub
 {
     public override async Task OnConnectedAsync()
     {
@@ -27,6 +28,7 @@ public sealed class SketchHub(SketchService sketches, OnlineSecurity security,
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         connections.Remove(Context.ConnectionId);
+        await presence.RemoveAsync(Context.ConnectionId);
         await workspace.EndPresentationAsync(connectionId: Context.ConnectionId);
         await replays.DisconnectedAsync(Context.ConnectionId);
         await Clients.All.SendAsync("UsersChanged", connections.List());
@@ -41,7 +43,14 @@ public sealed class SketchHub(SketchService sketches, OnlineSecurity security,
     }
     public async Task<WorkspaceState> GetWorkspace() { await RequireSession(); return workspace.Get(Context.ConnectionId); }
     public async Task<WorkspaceResult> WorkspaceApply(WorkspaceCommand command) => await workspace.ApplyAsync(Context.User!, Context.ConnectionId, command);
-    public async Task<WorkspaceResult> SelectSlide(string slideId) { await RequireSession(); return await workspace.SelectAsync(Context.ConnectionId, slideId); }
+    public async Task<WorkspaceResult> SelectSlide(string slideId) {
+        await RequireSession();
+        var result = await workspace.SelectAsync(Context.ConnectionId, slideId);
+        if (result.Applied) await presence.RemoveAsync(Context.ConnectionId);
+        return result;
+    }
+    public async Task<ScenePresenceFrame[]> GetScenePresence() { await RequireSession(); return presence.Get(Context.ConnectionId); }
+    public Task<bool> UpdateScenePresence(ScenePresenceCommand command) => presence.UpdateAsync(Context.User!, Context.ConnectionId, command, Context.ConnectionAborted);
 
     public async Task<IReadOnlyList<UserDto>> GetUsers()
     {

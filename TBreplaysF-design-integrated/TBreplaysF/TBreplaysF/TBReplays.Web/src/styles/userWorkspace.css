@@ -2221,11 +2221,21 @@
 .tbr-design .map-export-controls .camera-mode-button[aria-pressed=true] { border-color:var(--accent); background:#353044; }
 .tbr-design .camera-speed-select { min-height:28px; border:1px solid #404957; border-radius:7px; background:#1d2128; color:var(--text); font:600 12px var(--display-font); padding:3px 8px; }
 .tbr-design .map-export-controls .camera-help { color:var(--muted); background:transparent; font-size:10px; }
-.tbr-design canvas.flight-camera { cursor:grab; }
-.tbr-design canvas.flight-camera:active { cursor:grabbing; }
+.tbr-design canvas.flight-camera, .tbr-design canvas.flight-camera:active { cursor:default; }
 .tbr-design canvas:focus-visible { outline:1px solid var(--accent); outline-offset:-1px; }
 
 .text-tool-icon { font: 700 22px Georgia, serif; }
 .tbr-design .tools-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
 .text-sign-input { resize: vertical; min-height: 76px; font: inherit; line-height: 1.4; }
 .tbr-design .tool-settings-content { overflow-y: auto; }
+.tbr-design .history-buttons { display:flex; gap:4px; margin-left:auto; flex-shrink:0; }
+.tbr-design .history-buttons .undo-button { margin:0; padding:0 7px; font-size:11px; }
+.tbr-design .tools-header { flex-wrap:wrap; }
+.tbr-design .selected-tank-color-label { display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--muted); gap:8px; }
+.tbr-design .selected-tank-color-label input { width:48px; height:30px; padding:2px; background:#1d2128; border:1px solid #555e6b; border-radius:6px; cursor:pointer; }
+.tbr-design .selected-tank-colors { display:flex; gap:6px; }
+.tbr-design .selected-tank-colors button { width:24px; height:24px; padding:0; border:2px solid transparent; border-radius:6px; cursor:pointer; }
+.tbr-design .selected-tank-colors button[aria-pressed="true"] { border-color:#fff; box-shadow:0 0 0 2px #161b22; }
+.tbr-design .map-export-controls .follow-camera-button { height:32px; padding:0 10px; border:0; border-radius:var(--radius-sm); background:rgba(255,255,255,.055); color:var(--text); font:600 12px var(--display-font); transition:background-color 180ms var(--ease); }
+.tbr-design .map-export-controls .follow-camera-button:hover { background:rgba(255,255,255,.09); }
+.tbr-design .map-export-controls .follow-camera-button[aria-pressed="true"] { background:rgba(255,255,255,.11); }
