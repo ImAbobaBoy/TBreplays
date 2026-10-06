@@ -10,6 +10,15 @@ export type TerrainBounds = {
   height: number;
 };
 
+export type MapCapturePoint = {
+  id: number; label: string; position: { x: number; y: number; z: number }; radius: number;
+  capturePoints: number; pointsPerSecond: number; maxPointsPerSecond: number;
+  incomeVictoryPoints: number; spawnVictoryPointsTime: number;
+};
+export type MapCapturePointSet = {
+  mapId: string; sourceHash: string; coordinateSystem: 'three-world-v1'; points: MapCapturePoint[];
+};
+
 export type TerrainChunkInfo = {
   x: number;
   y: number;

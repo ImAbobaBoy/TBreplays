@@ -12,7 +12,7 @@ import type {
 } from '../app/AppState';
 import { TBReplaysApi } from '../api/TBReplaysApi';
 import type { MapCalibration } from '../domain/MapCalibration';
-import type { MapManifest } from '../domain/MapModels';
+import type { MapManifest, MapCapturePointSet } from '../domain/MapModels';
 import type {
   ReplayImportBatchResult,
   ReplayPlaybackState,
@@ -41,11 +41,12 @@ import { MapSceneSessionCache } from './MapSceneSessionCache';
 import { FreeFlightCamera, type CameraMode } from './FreeFlightCamera';
 import type { SceneCamera, ScenePoint, ScenePresenceFrame } from '../domain/ScenePresenceModels';
 import { EditorCursorLayer } from './layers/EditorCursorLayer';
+import { CapturePointLayer } from './layers/CapturePointLayer';
 
 type PreparedMap = {
   terrain: TerrainLayer; surface: SurfaceTextureLayer; objects: ObjectMeshLayer;
   terrainGroup: THREE.Group; objectGroup: THREE.Group;
-  manifest: MapManifest; calibration: MapCalibration;
+  manifest: MapManifest; calibration: MapCalibration; capturePoints: MapCapturePointSet;
   dispose(): void; bytes(): number;
 };
 
@@ -61,6 +62,7 @@ export class ViewerEngine {
   private drawingAllowed = true;
   private lastFrame = 0;
   private readonly editorCursors = new EditorCursorLayer();
+  private readonly capturePoints = new CapturePointLayer();
   private editorFrames: ScenePresenceFrame[] = [];
   private followingCamera = false;
   private orbitReferenceDistance = 750;
@@ -446,6 +448,7 @@ export class ViewerEngine {
     const timeline = buildReplayTimeline(safeReplayId, presentation);
 
     this.replayLayer.load(timeline, this.currentCalibration);
+    this.capturePoints.setReplay(presentation.playback.capturePoints ?? [], presentation.recorderTeamId);
 
     const playback = this.replayPlaybackController.loadReplay(
       timeline.replayId,
@@ -454,6 +457,7 @@ export class ViewerEngine {
     );
 
     this.replayLayer.setTime(playback.time);
+    this.capturePoints.setTime(playback.time);
     this.notifyReplayPlaybackChanged(playback, true);
 
     return {
@@ -470,6 +474,7 @@ export class ViewerEngine {
   public clearReplay(): void {
     this.replayLoadGeneration++;
     this.replayLayer.clear();
+    this.capturePoints.setReplay([], null);
 
     const playback = this.replayPlaybackController.clear();
 
@@ -480,6 +485,7 @@ export class ViewerEngine {
     const playback = this.replayPlaybackController.play(performance.now());
 
     this.replayLayer.setTime(playback.time);
+    this.capturePoints.setTime(playback.time);
     this.notifyReplayPlaybackChanged(playback, true);
 
     return playback;
@@ -489,6 +495,7 @@ export class ViewerEngine {
     const playback = this.replayPlaybackController.pause();
 
     this.replayLayer.setTime(playback.time);
+    this.capturePoints.setTime(playback.time);
     this.notifyReplayPlaybackChanged(playback, true);
 
     return playback;
@@ -498,6 +505,7 @@ export class ViewerEngine {
     const playback = this.replayPlaybackController.seekTo(time);
 
     this.replayLayer.setTime(playback.time);
+    this.capturePoints.setTime(playback.time);
     this.notifyReplayPlaybackChanged(playback, true);
 
     return playback;
@@ -507,6 +515,7 @@ export class ViewerEngine {
     const playback = this.replayPlaybackController.seekBy(deltaSeconds);
 
     this.replayLayer.setTime(playback.time);
+    this.capturePoints.setTime(playback.time);
     this.notifyReplayPlaybackChanged(playback, true);
 
     return playback;
@@ -523,6 +532,7 @@ export class ViewerEngine {
   public synchronizeReplay(time: number, speed: number, playing: boolean): ReplayPlaybackState {
     const playback = this.replayPlaybackController.synchronize(time, speed, playing, performance.now());
     this.replayLayer.setTime(playback.time);
+    this.capturePoints.setTime(playback.time);
     this.notifyReplayPlaybackChanged(playback, true);
     return playback;
   }
@@ -559,6 +569,8 @@ export class ViewerEngine {
     this.currentManifest = manifest;
     this.currentCalibration = calibration;
 
+    this.capturePoints.load(prepared.capturePoints, prepared.terrainGroup);
+
     this.applyCalibration(calibration);
 
     this.focusCameraOnObject(this.terrainRoot);
@@ -574,6 +586,7 @@ export class ViewerEngine {
     this.controls.enabled = !this.followingCamera && this.cameraMode === 'orbit';
     this.terrainRoot.clear();
     this.objectRoot.clear();
+    this.capturePoints.clear();
     this.activeMap = null;
     this.currentMapId = null;
     this.currentManifest = null;
@@ -786,6 +799,7 @@ export class ViewerEngine {
     try {
       const manifest = await this.api.getMapManifest(id);
       const calibration = await this.tryLoadCalibration(id, manifest);
+      let capturePoints: MapCapturePointSet = {mapId:id,sourceHash:'',coordinateSystem:'three-world-v1',points:[]};
       if (this.disposed) throw new Error('Просмотрщик закрыт.');
       const results = await Promise.allSettled([
         this.tryLoadTerrainTexture(id, calibration, surface).then(texture => {
@@ -793,11 +807,14 @@ export class ViewerEngine {
           terrain.setTexture(texture);
         }),
         terrain.load(manifest, calibration).then(() => objects.load(id, new THREE.Box3().setFromObject(terrainGroup))),
+        this.api.getMapCapturePoints(id).then(data => { capturePoints=data; }).catch(error => {
+          console.warn('Точки превосходства не загрузились:',error);
+        }),
       ]);
       const failed = results.find(result => result.status === 'rejected');
       if (failed?.status === 'rejected') throw failed.reason;
       if (this.disposed) throw new Error('Просмотрщик закрыт.');
-      return { terrain, surface, objects, terrainGroup, objectGroup, manifest, calibration, dispose,
+      return { terrain, surface, objects, terrainGroup, objectGroup, manifest, calibration, capturePoints, dispose,
         bytes: () => this.estimateMapBytes([terrainGroup, objectGroup]) };
     } catch (error) { dispose(); throw error; }
   }
@@ -884,6 +901,7 @@ export class ViewerEngine {
     // ReplayRoot намеренно не лежит внутри workspaceRoot/debugRoot.
     // Так replay виден и в рабочем режиме, и в debug/calibration mode.
     this.scene.add(this.replayRoot);
+    this.scene.add(this.capturePoints.root);
 
     this.scene.add(this.debugRoot);
 
@@ -957,6 +975,7 @@ export class ViewerEngine {
 
     if (playback) {
       this.replayLayer.setTime(playback.time);
+      this.capturePoints.setTime(playback.time);
       this.notifyReplayPlaybackChanged(playback, false, timestamp);
     }
 

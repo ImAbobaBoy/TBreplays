@@ -13,6 +13,7 @@
 
     <ItemGroup>
       <Folder Include="ReplayFiles\" />
+      <EmbeddedResource Include="ClientGameData/supremacy_points.json" LogicalName="TBReplays.SupremacyPoints" />
       <Content Update="appsettings.Local.json" CopyToPublishDirectory="Never" />
       <Content Remove="Maps_game/**;Maps/**;MapFiles/**;MapsFiles/**;MapData/**;Data/**" />
     </ItemGroup>

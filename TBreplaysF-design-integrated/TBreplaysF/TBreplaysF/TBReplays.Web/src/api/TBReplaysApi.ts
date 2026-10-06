@@ -25,6 +25,10 @@ export class TBReplaysApi {
     return await this.getJson<MapManifest>(`/api/maps/${mapId}/manifest`);
   }
 
+  public async getMapCapturePoints(mapId: string): Promise<import('../domain/MapModels').MapCapturePointSet> {
+    return this.getJson(`/api/maps/${mapId}/capture-points`);
+  }
+
   public async getMapCalibration(mapId: string): Promise<MapCalibration> {
     return await this.getJson<MapCalibration>(`/api/maps/${mapId}/calibration`);
   }

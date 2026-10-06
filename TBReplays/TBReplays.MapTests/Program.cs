@@ -14,6 +14,10 @@ using TBReplays.Terrain;
 using TBReplays.ClientGameData;
 using TBReplays.Replays.Parser;
 
+if (args.Contains("--capture-points-only")) {
+    CapturePointChecks.Run(args[1],args[2]);return;
+}
+
 if (args.Contains("--replay-states-only"))
 {
     ReplayStateChecks.Run(args.Where(x => x.EndsWith(".tbreplay", StringComparison.OrdinalIgnoreCase)).ToArray());

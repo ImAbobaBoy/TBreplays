@@ -78,6 +78,7 @@ public sealed record ReplayPlaybackData
     public IReadOnlyList<ReplayVehicleTrack> Vehicles { get; init; } = [];
     public IReadOnlyList<ReplayScoreboardFrame> Scoreboard { get; init; } = [];
     public IReadOnlyList<ReplayProjectileTrack> Projectiles { get; init; } = [];
+    public IReadOnlyList<ReplayCapturePointEvent> CapturePoints { get; init; } = [];
 }
 
 public sealed record ReplayVehicleTrack

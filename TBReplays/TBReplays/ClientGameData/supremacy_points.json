@@ -1,0 +1,1838 @@
+{
+  "01_mars_mr": {
+    "mapId": "01_mars_mr",
+    "sourceHash": "e76b865893683f3b9386cd1b042183200c8f74dd5ccc511af471098b4c257e9b",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -132,
+          "y": 36.35033,
+          "z": -132
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -55,
+          "y": 30.344889,
+          "z": -55
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": -27.107,
+          "y": 33.1587,
+          "z": 157
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 3,
+        "label": "D",
+        "position": {
+          "x": 160.46404,
+          "y": 33.163002,
+          "z": -13.983223
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "02_desert_train_dt": {
+    "mapId": "02_desert_train_dt",
+    "sourceHash": "dfb1e0820a8e5f476857557a5d1150fbbd54f9b14ba412041be34bed1b24d9f2",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -97.4,
+          "y": 8.918335,
+          "z": 3.7797909
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": 116.801254,
+          "y": 8.514018,
+          "z": 2.8474817
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 201.5,
+          "y": 10.307068,
+          "z": -0.020208359
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "03_erlenberg_er": {
+    "mapId": "03_erlenberg_er",
+    "sourceHash": "1ab0bddd9b37745e39c93f7a8a845ebf0e4c2cbf75cd54313cf38bdd72f57d74",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -153.8,
+          "y": 21.4374,
+          "z": -69.4
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -82.2,
+          "y": 21.451132,
+          "z": 70
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 114,
+          "y": 36.64784,
+          "z": 14.5
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "04_medvedkovo_md": {
+    "mapId": "04_medvedkovo_md",
+    "sourceHash": "efe3f9506177c2eebdac6c51de36ce661d86d4798089b4afd9f99640ecf12c79",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -216,
+          "y": 23.135042,
+          "z": 6.949
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 4,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -3.4,
+          "y": 34.832565,
+          "z": 7.308
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 4,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 219.73647,
+          "y": 46.445885,
+          "z": 29.76168
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 4,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "05_amigosville_am": {
+    "mapId": "05_amigosville_am",
+    "sourceHash": "1b30a540fefeb2ab7149450ac37f3364c62f6416273dab18dfb71a7b7ddc9c7d",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -179.44235,
+          "y": 26.160015,
+          "z": -2.9329543
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -3.77771,
+          "y": 20.889538,
+          "z": 10.822026
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 177.36182,
+          "y": 18.448877,
+          "z": 16.342272
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "07_fort_ft": {
+    "mapId": "07_fort_ft",
+    "sourceHash": "dd5e5a30f202fbee65258712922973111f571a2c69586a0e6f0e845cc194f7fa",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -141.58757,
+          "y": 24.097807,
+          "z": -140.15169
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -39.8,
+          "y": 23.118639,
+          "z": -38.7
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 98.04675,
+          "y": 22.403435,
+          "z": 111.760605
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "08_idle_id": {
+    "mapId": "08_idle_id",
+    "sourceHash": "b6bee5a7d3be8fb7719e6f79bb2abecdaa72149719ab0a89af807a9e106e9281",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": 147.83443,
+          "y": 48.146397,
+          "z": -163.26425
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -68.906,
+          "y": 51.82411,
+          "z": -110.581
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 89.42419,
+          "y": 48.512905,
+          "z": -18.873
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 3,
+        "label": "D",
+        "position": {
+          "x": -124.54971,
+          "y": 42.580627,
+          "z": 98.58407
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "09_savanna_sv": {
+    "mapId": "09_savanna_sv",
+    "sourceHash": "809d580c7b6f6742dfb6e6938e61de2301f0406d33d35339c3d5b9f6ef132b4f",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -186,
+          "y": 39.993084,
+          "z": -176.6
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -76.4,
+          "y": 40.764854,
+          "z": -66.6
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 64.1,
+          "y": 37.18684,
+          "z": 104.6
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "11_plant_pn": {
+    "mapId": "11_plant_pn",
+    "sourceHash": "c9a178b1962026d7f69b547124706caf3dface2ff58001efcb84aab88374c6e7",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -174.00787,
+          "y": 32.22075,
+          "z": -112.679375
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -3.0352848,
+          "y": 23.60396,
+          "z": 94.307
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 79.333855,
+          "y": 23.387705,
+          "z": -10.423567
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 3,
+        "label": "D",
+        "position": {
+          "x": 179.92654,
+          "y": 26.79232,
+          "z": 176.78859
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "12_malinovka_ma": {
+    "mapId": "12_malinovka_ma",
+    "sourceHash": "2e0f25fbb79529ef638aa94aa8fe169db304ba2cc663294a11ab9d5d68091205",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -109.62197,
+          "y": 14.024424,
+          "z": 136.56566
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": 79.984375,
+          "y": 20.662487,
+          "z": -74.624306
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 174.9053,
+          "y": 24.499626,
+          "z": -182
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "13_pliego_pl": {
+    "mapId": "13_pliego_pl",
+    "sourceHash": "91b0fefbc484584b36978ffd113d76bfb56d1143ba3d40547471f31097229366",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -218.6,
+          "y": 12.048819,
+          "z": 4.2
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 4,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": 26.999584,
+          "y": 16.977648,
+          "z": 11.989421
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 4,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 185.9,
+          "y": 13.137674,
+          "z": 2.6
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 4,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "14_port_pt": {
+    "mapId": "14_port_pt",
+    "sourceHash": "ce1754c8b4523f312d84c6081e502e26972a2d440432d439549f13f3fe1b6739",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -118.29,
+          "y": 22.63157,
+          "z": 105.9
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -26.18,
+          "y": 22.684954,
+          "z": -0.74
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 113.8,
+          "y": 31.765133,
+          "z": -118.7
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "15_lagoon_ln": {
+    "mapId": "15_lagoon_ln",
+    "sourceHash": "c5b90e7ed5944f766c4504ad555ca31a92dbeffc43fc87e789e006be2f65da7b",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -148.678,
+          "y": 30.691,
+          "z": -148.131
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": 7.392235,
+          "y": 23.642923,
+          "z": 5.5194016
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 188.857,
+          "y": 23.324,
+          "z": 192.39
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "16_holland_hl": {
+    "mapId": "16_holland_hl",
+    "sourceHash": "d0429c1f540242ef145019f67d6671e004eba09813408fa934ed151dd50e97d6",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -173.13278,
+          "y": 36.894264,
+          "z": -151.57484
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": 30.213478,
+          "y": 34.638226,
+          "z": 13.162258
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 160.31964,
+          "y": 29.782825,
+          "z": 145.26015
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "17_karelia_ka": {
+    "mapId": "17_karelia_ka",
+    "sourceHash": "93a6a63b6e017820df2a9d39b87c3ff76d9328531c8a44fc8de0745ae14874e0",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -137.68715,
+          "y": 25.67797,
+          "z": 138.87184
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -41.7,
+          "y": 9.058292,
+          "z": 38.7
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 86.69478,
+          "y": 18.79507,
+          "z": -101.98179
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "18_canal_cn": {
+    "mapId": "18_canal_cn",
+    "sourceHash": "38d5919b8ebcfddc7dfe03491a52bcb0b0384f6ec703fe928a357ef51578cf0c",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -201.7,
+          "y": 40.653114,
+          "z": -211
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -8.3,
+          "y": 35.868767,
+          "z": -92.2
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": -58.6,
+          "y": 36.067657,
+          "z": 80.7
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 3,
+        "label": "D",
+        "position": {
+          "x": 142.6,
+          "y": 34.83252,
+          "z": 130.3
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "19_himmelsdorf_hm": {
+    "mapId": "19_himmelsdorf_hm",
+    "sourceHash": "07be1606702315148b5bb7c9a5e89ddf297431d81dd14bcce91d816072c709fa",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -211.3747,
+          "y": 22.61078,
+          "z": -0.7912903
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": 34.820206,
+          "y": 23.11676,
+          "z": 103.575806
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 43.26829,
+          "y": 23.043734,
+          "z": -91.16591
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 3,
+        "label": "D",
+        "position": {
+          "x": 144.14815,
+          "y": 23.03798,
+          "z": 12.200775
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "20_cybermap_cb": {
+    "mapId": "20_cybermap_cb",
+    "sourceHash": "a4854739f30a60d4fb3cef45d545cbe85a1739ca7627161c8820c0a5699503fb",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": 5,
+          "y": 18.00636,
+          "z": -185
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -185,
+          "y": 18.015982,
+          "z": 5
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 21,
+          "y": 18.325695,
+          "z": 21
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 3,
+        "label": "D",
+        "position": {
+          "x": 139,
+          "y": 12.551672,
+          "z": 139
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "21_mountain_mnt": {
+    "mapId": "21_mountain_mnt",
+    "sourceHash": "8b233b849189bce460807ac535fae4cbad8907c371b23624aaff72467893b0c2",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -74.1,
+          "y": 37.07009,
+          "z": -76.7
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": 80,
+          "y": 27.850767,
+          "z": 63
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 201.9,
+          "y": 34.41527,
+          "z": 207.3
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "22_italy_it": {
+    "mapId": "22_italy_it",
+    "sourceHash": "ecb3ee0b1246029b85cc0c6668bb53775c949ddaa4eefb35a67103423ece2c9b",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": 9.7023535,
+          "y": 31.638258,
+          "z": -123.773254
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -68.220085,
+          "y": 30.782787,
+          "z": 28.394611
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 167.21626,
+          "y": 27.46745,
+          "z": 161.46068
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "23_karieri_kr": {
+    "mapId": "23_karieri_kr",
+    "sourceHash": "9b407e605d3695001ab1250f4a94052895c14ae37a033cdee0aba5503700c3e9",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": 18.324219,
+          "y": 35.2557,
+          "z": 93.09558
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": 10.641495,
+          "y": 17.31289,
+          "z": -15.072695
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 8.53666,
+          "y": 28.170898,
+          "z": -136.49245
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "24_milibase_mlb": {
+    "mapId": "24_milibase_mlb",
+    "sourceHash": "d4e8a379cdf135a3ec38db84eec95b1e1c6015a21be0c5124fbae75750230ede",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -201.06676,
+          "y": 36.099392,
+          "z": 11.503799
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -37.5224,
+          "y": 30.675648,
+          "z": 11.196011
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 209.17685,
+          "y": 34.134315,
+          "z": 2.4647608
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "25_canyon_ca": {
+    "mapId": "25_canyon_ca",
+    "sourceHash": "26a370b9a2aa07e201a58292d157d65aa46e4972a60427a5ee90be5ad5f82ec1",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -159.5682,
+          "y": 36.658245,
+          "z": 147.39616
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -54.747147,
+          "y": 38.012646,
+          "z": -9.213378
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 219.74887,
+          "y": 40.98154,
+          "z": -227.80498
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "26_holmeisk_hk": {
+    "mapId": "26_holmeisk_hk",
+    "sourceHash": "74548734dd461bd59b79dc57615124546e31221cf5f5612582670a46c9d16cb5",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -148.69301,
+          "y": 22.271114,
+          "z": -146.95743
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -14.85926,
+          "y": 27.31842,
+          "z": -13.293648
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 147.24077,
+          "y": 25.512808,
+          "z": 143.12744
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "28_rock_rc": {
+    "mapId": "28_rock_rc",
+    "sourceHash": "9bf2329cff38f4ade3d4dae21bb4b53ef9277650bdb4d0bc33d3795eae5dcb4b",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": 188.90828,
+          "y": 44.542503,
+          "z": 190.84656
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": 21.551807,
+          "y": 39.903275,
+          "z": 19.842098
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": -131.05704,
+          "y": 38.90297,
+          "z": -127.37927
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "29_skit_sk": {
+    "mapId": "29_skit_sk",
+    "sourceHash": "d7c6b5b4711ba477ca8f6b64c18bb33ce1594c9c0a9741ee37e931dec335ff2a",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -89.457146,
+          "y": 23.630167,
+          "z": -90.22124
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -38.77787,
+          "y": 17.5541,
+          "z": -34.2303
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 73.34059,
+          "y": 24.461433,
+          "z": 91.27106
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "30_grossberg_sh": {
+    "mapId": "30_grossberg_sh",
+    "sourceHash": "f89a6f1c2aa8c81832a7b152032f2094b01994ba0930bdc90d58049f90fb042b",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -98.375946,
+          "y": 24.852861,
+          "z": -99.524895
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": 9.978714,
+          "y": 24.816214,
+          "z": 6.464198
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 99.156296,
+          "y": 20.114443,
+          "z": 98.38971
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "31_lumber_lm": {
+    "mapId": "31_lumber_lm",
+    "sourceHash": "105057c41cbf634c56253c4e5dc047de516fef4ed5266644f722d439139bf962",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -99.815155,
+          "y": 28.840794,
+          "z": -133.8117
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": 12.450342,
+          "y": 35.557724,
+          "z": 16.598345
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 173.6066,
+          "y": 32.045597,
+          "z": 181.1906
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "32_faust_fa_night": {
+    "mapId": "32_faust_fa_night",
+    "sourceHash": "b425972be0d8da2313c6301279e7aaff217347e6918995bb87faac997273591c",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -169.87598,
+          "y": 33.620476,
+          "z": 170.04547
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": 10.193497,
+          "y": 16.974136,
+          "z": -8.942976
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": -3.0719676,
+          "y": 18.94343,
+          "z": -172.30101
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 3,
+        "label": "D",
+        "position": {
+          "x": 166.43825,
+          "y": 19.173632,
+          "z": 7.050926
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "33_neptune_nt": {
+    "mapId": "33_neptune_nt",
+    "sourceHash": "14029638768d22dbcbbd2b698255802a9b35d352654c3caa56494fbd709dbd41",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -174.7086,
+          "y": 33.10273,
+          "z": -8.784713
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": 3.6204395,
+          "y": 54.720543,
+          "z": -8.699091
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 135.04639,
+          "y": 55.21479,
+          "z": 49.244446
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 3,
+        "label": "D",
+        "position": {
+          "x": 139.54192,
+          "y": 57.11903,
+          "z": -63.012726
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "34_forgecity_fc": {
+    "mapId": "34_forgecity_fc",
+    "sourceHash": "11ae3d52e2cc94974bff5f7ab6ee7ed3b8720a202b1c36ab19a76ba1e77bf0cd",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": 138.4907,
+          "y": 21.446772,
+          "z": -141.61089
+        },
+        "radius": 13,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -183.70758,
+          "y": 28.626518,
+          "z": 86.49136
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": -11.847656,
+          "y": 29.268856,
+          "z": 176.13057
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 3,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "35_rift_rt": {
+    "mapId": "35_rift_rt",
+    "sourceHash": "277878db916d32f7112ba24af0b7eeb5ae227da00022ad8c412f14d6c55e1a2a",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -162.5317,
+          "y": 54.778984,
+          "z": -54.36319
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -59.086926,
+          "y": 54.79281,
+          "z": -163.52498
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 136.59091,
+          "y": 59.43146,
+          "z": 137.02231
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 5,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  },
+  "42_glacier_gl": {
+    "mapId": "42_glacier_gl",
+    "sourceHash": "bc3193946ce9ccd68300947558984f25ee3fb32f4ac112cd60838ba15508d4f2",
+    "coordinateSystem": "three-world-v1",
+    "points": [
+      {
+        "id": 0,
+        "label": "A",
+        "position": {
+          "x": -54,
+          "y": 41,
+          "z": -138
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 4,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 1,
+        "label": "B",
+        "position": {
+          "x": -137.5,
+          "y": 41.367683,
+          "z": -53
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 4,
+        "spawnVictoryPointsTime": 2
+      },
+      {
+        "id": 2,
+        "label": "C",
+        "position": {
+          "x": 130,
+          "y": 47.309788,
+          "z": 130
+        },
+        "radius": 15,
+        "capturePoints": 15,
+        "pointsPerSecond": 1,
+        "maxPointsPerSecond": 3,
+        "incomeVictoryPoints": 4,
+        "spawnVictoryPointsTime": 2
+      }
+    ]
+  }
+}

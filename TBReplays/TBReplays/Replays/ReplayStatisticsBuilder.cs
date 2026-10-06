@@ -212,6 +212,7 @@ public static class ReplayStatisticsBuilder
         return new ReplayPlaybackData
         {
             StartTime = 0, EndTime = endTime, Vehicles = tracks, Scoreboard = scoreboard,
+            CapturePoints = result.CapturePointEvents.Select(x => x with { RawPayloadHex = "" }).ToArray(),
             Projectiles = result.ProjectilePoints.GroupBy(x => x.ProjectileId)
                 .Select(x => new ReplayProjectileTrack(x.Key, x.OrderBy(y => y.Time).ToArray())).ToArray()
         };

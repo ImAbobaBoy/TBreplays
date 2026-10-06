@@ -76,6 +76,12 @@ public sealed class ReplayParseWarning
     public string? Value { get; init; }
 }
 
+public sealed record ReplayCapturePointEvent(float Time, int PacketIndex, int PointId, int OwnerTeamId,
+    int CapturingTeamId, float Progress, string Source, string RawPayloadHex);
+
+public sealed record ReplaySpottingCandidate(float Time, int PacketIndex, uint EntityId, int NotificationType,
+    int Flags, string Source, string Confidence, string RawPayloadHex);
+
 public sealed class ReplayTimelineSummary
 {
     public int ScoreEventCount { get; init; }
@@ -331,6 +337,9 @@ public sealed class ReplayDeathEvent
 
 public sealed class ReplayParseResult
 {
+    public int CapturePointProtocolVersion { get; init; }
+    public IReadOnlyList<ReplayCapturePointEvent> CapturePointEvents { get; init; } = [];
+    public IReadOnlyList<ReplaySpottingCandidate> SpottingCandidates { get; init; } = [];
     public int VehicleStateProtocolVersion { get; init; }
     public IReadOnlyList<ReplayReloadEvent> ReloadEvents { get; init; } = [];
     public int ShotProtocolVersion { get; init; }

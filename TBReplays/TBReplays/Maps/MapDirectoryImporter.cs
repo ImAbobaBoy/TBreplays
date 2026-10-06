@@ -85,7 +85,10 @@ public sealed class MapDirectoryImporter
             Directory.CreateDirectory(revisions);
             staging = Path.Combine(revisions, "staging-" + revision); Directory.CreateDirectory(staging);
             var rootFile = File.Exists(Path.Combine(directory, name + ".sc2.dvpl")) ? Path.Combine(directory, name + ".sc2.dvpl") : Path.Combine(directory, name + ".sc2");
-            var scene = new MapScene(_reader.Read(_decoder.DecodeFile(rootFile)));
+            var sceneBytes = _decoder.DecodeFile(rootFile);
+            var scene = new MapScene(_reader.Read(sceneBytes));
+            await File.WriteAllTextAsync(Path.Combine(staging, "capture_points.json"),
+                JsonSerializer.Serialize(MapCapturePoints.Extract(name, scene, sceneBytes), MapCatalogService.JsonOptions), ct);
             var resources = new MapResourceResolver(directory, SourceRoot, _decoder, EnsureFreeSpace);
             var heightmap = new DavaHeightmapReader().Read(_decoder.DecodeFile(resources.Resolve(scene.HeightmapReference)));
             var names = GetNames(name);

@@ -93,14 +93,19 @@ public sealed class ReplayParseService
             visibilityFrames,
             healthFrames);
 
+        var recorderTeamId = vehicles.FirstOrDefault(x => x.AccountId == metaInfo.RecorderAccountId)?.TeamId;
         var result = new ReplayParseResult
         {
             VehicleStateProtocolVersion = 1,
             ReloadEvents = reloadEvents,
             ShotProtocolVersion = 1,
             RecorderEntityId = vehicles.FirstOrDefault(x => x.AccountId == metaInfo.RecorderAccountId)?.EntityId,
-            RecorderTeamId = vehicles.FirstOrDefault(x => x.AccountId == metaInfo.RecorderAccountId)?.TeamId,
+            RecorderTeamId = recorderTeamId,
             SchemaVersion = 2,
+            CapturePointProtocolVersion = replayData.Header.ClientVersion.StartsWith("26.10.", StringComparison.Ordinal) ? 1 : 0,
+            CapturePointEvents = CapturePointPacketDecoder.Decode(packets, vehiclesByEntityId.Keys.ToHashSet(), replayData.Header.ClientVersion),
+            SpottingCandidates = SpottingCandidateDecoder.Decode(packets,
+                vehicles.Where(v => v.TeamId == recorderTeamId).Select(v => v.EntityId).ToHashSet(), replayData.Header.ClientVersion),
             CatalogVersion = catalog.Version,
             ArenaUniqueId = battleResults?.ArenaUniqueId.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ClientVersion = replayData.Header.ClientVersion,

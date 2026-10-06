@@ -369,6 +369,7 @@ export type ReplayTeamState = {
   hasUnobservedHealth: boolean; supremacyPoints: number | null;
 };
 export type ReplayPresentation = {
+  capturePointProtocolVersion?: number;
   vehicleStateProtocolVersion?: number;
   schemaVersion: number; recorderTeamId: number | null; recorderEntityId: number | null;
   mapName: string | null; mapId: number | null;
@@ -379,6 +380,7 @@ export type ReplayPresentation = {
     vehicleClass: string | null; extras: { extraId: number; name: string; kind: string;
       minimumUses: number; directUses: number; inferredUses: number; usageMayBeIncomplete: boolean }[] })[];
   playback: {
+    capturePoints?: ReplayCapturePointEvent[];
     timeBasis: string; startTime: number; endTime: number;
     vehicles: { entityId: number; teamId: number; movement: ParsedReplayMovementFrame[];
       turret: ParsedReplayTurretFrame[]; states: ReplayVehicleState[];
@@ -387,4 +389,9 @@ export type ReplayPresentation = {
     scoreboard: { time: number; teams: ReplayTeamState[] }[];
     projectiles: { projectileId: number; points: ParsedReplayProjectilePoint[] }[];
   };
+};
+
+export type ReplayCapturePointEvent = {
+  time: number; packetIndex: number; pointId: number; ownerTeamId: number;
+  capturingTeamId: number; progress: number; source: string;
 };

@@ -50,6 +50,10 @@ public sealed class MapsController : ControllerBase
     [HttpGet("{mapId}/surface")]
     public Task<object> Surface(string mapId, CancellationToken cancellationToken) => _mapImportService.GetSurfaceAsync(mapId, cancellationToken);
 
+    [HttpGet("{mapId}/capture-points")]
+    public Task<MapCapturePointSet> CapturePoints(string mapId, CancellationToken cancellationToken) =>
+        _mapImportService.GetCapturePointsAsync(mapId, cancellationToken);
+
     [HttpGet("{mapId}/textures/{fileName}")]
     public IActionResult Texture(string mapId, string fileName) => Artifact(_mapImportService.GetTexturePath(mapId, fileName), "image/vnd-ms.dds");
 

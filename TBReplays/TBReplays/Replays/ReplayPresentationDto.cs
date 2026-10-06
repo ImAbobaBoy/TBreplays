@@ -4,6 +4,7 @@ namespace TBReplays.Replays;
 public sealed record ReplayPresentationDto
 {
     public int VehicleStateProtocolVersion { get; init; }
+    public int CapturePointProtocolVersion { get; init; }
     public uint? RecorderEntityId { get; init; }
     public int? RecorderTeamId { get; init; }
     public int SchemaVersion { get; init; }
@@ -22,6 +23,7 @@ public sealed record ReplayPresentationDto
     public static ReplayPresentationDto FromResult(ReplayParseResult result) => new()
     {
         VehicleStateProtocolVersion = result.VehicleStateProtocolVersion,
+        CapturePointProtocolVersion = result.CapturePointProtocolVersion,
         RecorderEntityId = result.RecorderEntityId, RecorderTeamId = result.RecorderTeamId,
         SchemaVersion = result.SchemaVersion, ClientVersion = result.ClientVersion,
         CatalogVersion = result.CatalogVersion, ArenaUniqueId = result.ArenaUniqueId,
