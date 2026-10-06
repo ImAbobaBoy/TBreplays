@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { MapDdsLoader } from '../MapDdsLoader';
 import { isTacticalDecoration } from '../TacticalMapObjects';
+import { remapBillboardFaces } from '../BillboardTextureOverride';
+import billboardImage from '../../assets/billboards/community.jpg';
 
 import type { TBReplaysApi } from '../../api/TBReplaysApi';
 import type { MapObjectMeshManifest, MapObjectMeshMaterial } from '../../domain/MapModels';
@@ -65,7 +67,24 @@ export class ObjectMeshLayer {
       if (Array.isArray(mesh.material)) mesh.material.forEach(m => this.disposeMaterial(m));
       else if (mesh.material !== this.fallbackMaterial) this.disposeMaterial(mesh.material);
       mesh.material = materials;
+      await this.replaceBillboardFaces(mesh, manifest, generation);
     }
+  }
+
+  private async replaceBillboardFaces(mesh: THREE.Mesh<THREE.BufferGeometry>, manifest: MapObjectMeshManifest, generation: number): Promise<void> {
+    if (!manifest.instances?.some(i => i.name === 'billboard_type1_texture')) return;
+    let texture: THREE.Texture;
+    try { texture = await new THREE.TextureLoader().loadAsync(billboardImage); }
+    catch (error) { console.warn('Не удалось загрузить изображение щитов:', error); return; }
+    if (generation !== this.generation) { texture.dispose(); return; }
+    // Exported SC2 UVs put the top edge at v=0, as with the original DDS.
+    texture.flipY = false; texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    const materials = mesh.material as THREE.Material[];
+    const index = materials.length;
+    if (!remapBillboardFaces(mesh.geometry, manifest.instances, index)) { texture.dispose(); return; }
+    materials.push(new THREE.MeshStandardMaterial({map:texture, color:0xffffff, roughness:.9,
+      metalness:0, side:THREE.DoubleSide, clippingPlanes:this.clippingPlanes}));
   }
 
   public clear(): void {
