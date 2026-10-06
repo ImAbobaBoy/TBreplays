@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createId } from '../../utils/createId';
 import { useOnline } from '../online/OnlineRoot';
 import { useMapCatalog } from '../maps/MapCatalog';
+import { MapPreview } from '../maps/MapPreview';
 import type { WorkspaceSlide } from '../online/OnlineModels';
 
 export function WorkspaceSlides() {
@@ -56,7 +57,7 @@ export function WorkspaceSlides() {
         </div>
       </div>
       <div className="map-grid classic-grid">{slides.map((slide, position) => <article key={slide.id} className={slide.id === active ? 'map-card selected' : 'map-card'} role="button" tabIndex={locked ? -1 : 0} aria-disabled={locked || busy} aria-label={`Открыть карту ${position + 1}`} onClick={() => !locked && !busy && void select(slide.id)} onKeyDown={event => { if (!locked && !busy && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); void select(slide.id); } }}>
-        <div className="map-thumb-wrap"><span className="map-thumb" title={maps.find(map => map.id === slide.mapId)?.title ?? slide.mapId} />
+        <div className="map-thumb-wrap"><span className="map-thumb" title={maps.find(map => map.id === slide.mapId)?.title ?? slide.mapId}><MapPreview mapId={slide.mapId} title={maps.find(map => map.id === slide.mapId)?.title ?? slide.mapId} thumbnail /></span>
           <button className="map-card-more" aria-label={`Действия с картой ${position + 1}`} aria-haspopup="menu" aria-expanded={menu?.slide.id === slide.id} disabled={!canEdit || locked || busy} onClick={event => { event.stopPropagation(); const rect = event.currentTarget.getBoundingClientRect(); setMenu(menu?.slide.id === slide.id ? null : { slide, x: rect.right - 158, y: rect.bottom + 6 }); }}>•••</button>
         </div>
         <SlideTitle slide={slide} disabled={!canEdit || locked || busy} save={title => void action(() => client.workspaceCommand({ kind: 'rename', slideId: slide.id, title }))} />
@@ -65,7 +66,7 @@ export function WorkspaceSlides() {
     </section>
     {dialog && <div className="modal-backdrop" onMouseDown={() => !busy && setDialog(null)}><div className="modal-window add-map-dialog" role="dialog" aria-modal="true" aria-labelledby="addMapModalTitle" onMouseDown={event => event.stopPropagation()}>
       <div className="modal-header add-map-dialog-header"><div><span className="modal-eyebrow">Карты</span><h2 id="addMapModalTitle">{dialog.replace ? 'Сменить карту' : 'Добавить карту'}</h2></div><button className="modal-close" aria-label="Закрыть" disabled={busy} onClick={() => setDialog(null)}><Icon kind="close" /></button></div>
-      <div className="modal-body add-map-dialog-body"><div className="map-preview-column"><div className="map-preview-placeholder" aria-label="Область под превью карты"><span className="map-preview-placeholder-label">Область под карту</span><span className="map-preview-selected-name">{maps.find(map => map.id === selectedMap)?.title}</span></div></div>
+      <div className="modal-body add-map-dialog-body"><div className="map-preview-column"><div className="map-preview-placeholder" aria-label="Превью выбранной карты"><MapPreview mapId={selectedMap} title={maps.find(map => map.id === selectedMap)?.title ?? selectedMap} /><span className="map-preview-selected-name">{maps.find(map => map.id === selectedMap)?.title}</span></div></div>
         <div className="map-picker-column"><label className="map-search-wrap"><Icon kind="search" /><input className="map-search-input" type="search" placeholder="Поиск..." aria-label="Поиск карты" value={search} onChange={event => setSearch(event.target.value)} /></label><div className="map-picker-list" role="listbox" aria-label="Список карт">{maps.filter(map => map.title.toLocaleLowerCase('ru').includes(search.toLocaleLowerCase('ru'))).map(map => <button key={map.id} className={selectedMap === map.id ? 'map-picker-item selected' : 'map-picker-item'} role="option" aria-selected={selectedMap === map.id} onClick={() => setSelectedMap(map.id)}>{map.title}</button>)}</div></div>
       </div>
       {error && <p role="alert">{error}</p>}
